@@ -43,6 +43,7 @@ sudo make install
 | --------- | :------: | ------------- | ------ | ------------------------------------------------------------ |
 | broker    |    ✓     |   tcp://localhost:1883            | string | The URL for the MQTT Message Broker. It should include the protocol used: **tcp**, **ssl**, **ws**, **wss** and the port, which is generally 1883 for tcp, 8883 for ssl, and 443 for ws. |
 | topic     |    ✓     |               | string | This is the base topic to use. The plugin will create subtopics for the different types of status messages. |
+| clientid  |          | tr-status     | string | Sets the MQTT client ID, only needs to be changed if multiple instances are connecting to one MQTT broker. | 
 | username  |          |               | string | If a username is required for the broker, add it here. |
 | password  |          |               | string | If a password is required for the broker, add it here. |
 

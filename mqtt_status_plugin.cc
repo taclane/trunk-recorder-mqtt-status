@@ -47,6 +47,7 @@ class Mqtt_Status : public Plugin_Api, public virtual mqtt::callback, public vir
   std::string username;
   std::string password;
   std::string topic;
+  std::string clientid;
   mqtt::async_client *client;
 
 protected:
@@ -331,7 +332,7 @@ public:
   {
     const char *LWT_PAYLOAD = "Last will and testament.";
     // set up access channels to only log interesting things
-    client = new mqtt::async_client(this->mqtt_broker, "tr-status", "./store");
+    client = new mqtt::async_client(this->mqtt_broker, this->clientid, "./store");
 
     mqtt::connect_options connOpts;
 
@@ -420,9 +421,13 @@ public:
     BOOST_LOG_TRIVIAL(info) << " MQTT Status Plugin Broker: " << this->mqtt_broker;
     this->topic = cfg.get<std::string>("topic", "");
     BOOST_LOG_TRIVIAL(info) << " MQTT Status Plugin Topic: " << this->topic;
+    this->clientid = cfg.get<std::string>("clientid", "tr-status");
+    BOOST_LOG_TRIVIAL(info) << " MQTT Status Plugin Client ID: " << this->clientid;
     this->username = cfg.get<std::string>("username", "");
     BOOST_LOG_TRIVIAL(info) << " MQTT Status Plugin Broker Username: " << this->username;
     this->password = cfg.get<std::string>("password", "");
+ 
+
 
     return 0;
   }
