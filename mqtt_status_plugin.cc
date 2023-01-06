@@ -220,7 +220,7 @@ public:
     // Send the recorders in addition to the config, cause there isn't a better place to do it.
     std::vector<Recorder *> recorders;
 
-    for (std::vector<Source *>::iterator it = this->sources.begin(); it != this->sources.end(); it++) {
+    for (std::vector<Source *>::iterator it = sources.begin(); it != sources.end(); it++) {
       Source *source = *it;
 
       std::vector<Recorder *> sourceRecorders = source->get_recorders();
