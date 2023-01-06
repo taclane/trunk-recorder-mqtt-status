@@ -216,6 +216,20 @@ public:
     }
 
     send_object(root, "config", "config", true);
+
+    // Send the recorders in addition to the config, cause there isn't a better place to do it.
+    std::vector<Recorder *> recorders;
+
+    for (std::vector<Source *>::iterator it = this->sources.begin(); it != this->sources.end(); it++) {
+      Source *source = *it;
+
+      std::vector<Recorder *> sourceRecorders = source->get_recorders();
+
+      recorders.insert(recorders.end(), sourceRecorders.begin(), sourceRecorders.end());
+    }
+
+    send_recorders(recorders);
+    
     m_config_sent = true;
   }
 
@@ -265,7 +279,7 @@ public:
       node.push_back(std::make_pair("", recorder->get_stats()));
     }
 
-    return send_object(node, "recorders", "recorders");
+    return send_object(node, "recorders", "recorders",true);
   }
 
   int call_start(Call *call) override
