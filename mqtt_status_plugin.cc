@@ -215,7 +215,7 @@ public:
       root.put("broadcast_signals", this->config->broadcast_signals);
     }
 
-    send_object(root, "config", "config");
+    send_object(root, "config", "config", true);
     m_config_sent = true;
   }
 
@@ -229,7 +229,7 @@ public:
       System *system = *it;
       node.push_back(std::make_pair("", system->get_stats()));
     }
-    return send_object(node, "systems", "systems");
+    return send_object(node, "systems", "systems", true);
   }
 
   int send_system(System *system)
@@ -286,7 +286,7 @@ public:
     return send_object(recorder->get_stats(), "recorder", "recorder");
   }
 
-  int send_object(boost::property_tree::ptree data, std::string name, std::string type)
+  int send_object(boost::property_tree::ptree data, std::string name, std::string type, bool retain = false)
   {
 
     if (m_open == false)
@@ -309,6 +309,7 @@ public:
     {
       mqtt::message_ptr pubmsg = mqtt::make_message(object_topic, stats_str.str());
       pubmsg->set_qos(QOS);
+      pubmsg->set_retained(retain);
       client->publish(pubmsg); //->wait_for(TIMEOUT);
     }
     catch (const mqtt::exception &exc)
