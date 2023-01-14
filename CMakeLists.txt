@@ -176,6 +176,7 @@ if(NOT Boost_FOUND)
 endif()
 
 ADD_DEFINITIONS(-DBOOST_ALL_DYN_LINK)
+ADD_DEFINITIONS(-DBOOST_BIND_GLOBAL_PLACEHOLDERS)
 add_definitions(-DGNURADIO_VERSION=${GNURADIO_VERSION})
 
 ########################################################################
