@@ -347,7 +347,7 @@ public:
   {
     const char *LWT_PAYLOAD = "Last will and testament.";
     // set up access channels to only log interesting things
-    client = new mqtt::async_client(this->mqtt_broker, this->clientid, "./store");
+    client = new mqtt::async_client(this->mqtt_broker, this->clientid, config->capture_dir + "/store");
 
     mqtt::connect_options connOpts;
 
