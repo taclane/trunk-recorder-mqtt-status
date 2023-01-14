@@ -84,7 +84,7 @@ The included Dockerfile will allow buliding a trunk-recorder docker image with t
 
 Docker compose file:
 
-```
+```yaml
 version: '3'
 services:
   recorder:
