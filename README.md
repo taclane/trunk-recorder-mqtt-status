@@ -55,7 +55,7 @@ See the included [config.json](./config.json) as an example of how to load this 
 ```yaml
     "plugins": [
     {
-        "name": "example plugin",
+        "name": "mqtt status",
         "library": "libmqtt_status_plugin.so",
         "broker": "tcp://io.adafruit.com:1883",
         "topic": "robotastic/feeds",
@@ -74,4 +74,27 @@ The Mosquitto MQTT is an easy way to have a local MQTT broker. It can be install
 Starting it on a Mac:
 ```bash
 /opt/homebrew/sbin/mosquitto -c /opt/homebrew/etc/mosquitto/mosquitto.conf
+```
+
+## Docker
+
+The included Dockerfile will allow buliding a trunk-recorder docker image with this plugin included.
+
+`docker-compose` can be used to automate the build and deployment of this image. In the Docker compose file replace the image line with a build line pointing to the location where this repo has been cloned to.   
+
+Docker compose file:
+
+```
+version: '3'
+services:
+  recorder:
+    build: ./trunk-recorder-mqtt-status
+    container_name: trunk-recorder
+    restart: always
+    privileged: true
+    volumes:
+      - /dev/bus/usb:/dev/bus/usb
+      - /var/run/dbus:/var/run/dbus 
+      - /var/run/avahi-daemon/socket:/var/run/avahi-daemon/socket
+      - ./:/app
 ```
