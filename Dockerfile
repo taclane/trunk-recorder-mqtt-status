@@ -1,4 +1,6 @@
-FROM robotastic/trunk-recorder:latest
+ARG IMAGE=robotastic/trunk-recorder:latest
+
+FROM ${IMAGE}
 
 # Build MQTT Stats
 RUN apt update && export DEBIAN_FRONTEND=noninteractive && \ 
