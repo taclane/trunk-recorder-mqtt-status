@@ -561,13 +561,14 @@ public:
     this->password = cfg.get<std::string>("password", "");
     this->topic = cfg.get<std::string>("topic", "");
     BOOST_LOG_TRIVIAL(info) << " MQTT Status Plugin Topic: " << this->topic;
-    this->unit_topic = cfg.get<std::string>("unit_topic", "");
-    BOOST_LOG_TRIVIAL(info) << " MQTT Unit Plugin Topic: " << this->unit_topic;
 
+    this->unit_topic = cfg.get<std::string>("unit_topic", "");
     if (this->unit_topic == "") {
       this->unit_enabled = false;
+      BOOST_LOG_TRIVIAL(info) << " MQTT Unit Status Plugin: Disabled";
     } else {
       this->unit_enabled = true;
+      BOOST_LOG_TRIVIAL(info) << " MQTT Unit Status Plugin Topic: " << this->unit_topic;
     }
 
     return 0;
