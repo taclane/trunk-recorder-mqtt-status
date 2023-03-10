@@ -273,8 +273,34 @@ public:
     return send_object(recorder->get_stats(), "recorder", "recorder", this->topic);
   }
 
-//************UNIT REPORTING********
-  // Use the call_end to catch conventional p25 UID/TG information since there are no control channel
+  //************UNIT REPORTING********
+  // Re-task call_start to also report unit ID information
+  int call_start(Call *call) {
+    long talkgroup_num = call->get_talkgroup();
+    long source_id = call->get_current_source_id();
+    std::string short_name = call->get_short_name();
+    if ((this->unit_topic != "") && (source_id != 0)) {
+      boost::property_tree::ptree node;
+      std::vector<unsigned long> talkgroup_patches = call->get_system()->get_talkgroup_patch(talkgroup_num);
+      std::string patch_string;
+      bool first = true;
+      BOOST_FOREACH (auto& TGID, talkgroup_patches) {
+        if (!first) { patch_string += ","; }
+        first = false;
+        patch_string += std::to_string(TGID);
+      }
+      node.put("unit", source_id );
+      node.put("unit_alpha", call->get_system()->find_unit_tag(source_id));
+      node.put("talkgroup", talkgroup_num);
+      node.put("talkgroup_patches", patch_string);
+      node.put("talkgroup_alpha", call->get_talkgroup_tag());
+      node.put("encrypted", call->get_encrypted());
+      send_object(node, "call", "call", this->unit_topic+"/"+short_name.c_str());
+    }
+    return send_object(call->get_stats(), "call", "call_start", this->topic);
+  }
+
+  // Use the call_end to catch conventional p25 UID/TG information since there are no control channel messages
   int call_end(Call_Data_t call_info) override
   {
     boost::property_tree::ptree node;
@@ -394,32 +420,7 @@ public:
     }
     return 1;
   }
-
-  int call_start(Call *call) {
-    long talkgroup_num = call->get_talkgroup();
-    long source_id = call->get_current_source_id();
-    std::string short_name = call->get_short_name();
-    if ((this->unit_topic != "") && (source_id != 0)) {
-      boost::property_tree::ptree node;
-      std::vector<unsigned long> talkgroup_patches = call->get_system()->get_talkgroup_patch(talkgroup_num);
-      std::string patch_string;
-      bool first = true;
-      BOOST_FOREACH (auto& TGID, talkgroup_patches) {
-        if (!first) { patch_string += ","; }
-        first = false;
-        patch_string += std::to_string(TGID);
-      }
-      node.put("unit", source_id );
-      node.put("unit_alpha", call->get_system()->find_unit_tag(source_id));
-      node.put("talkgroup", talkgroup_num);
-      node.put("talkgroup_patches", patch_string);
-      node.put("talkgroup_alpha", call->get_talkgroup_tag());
-      node.put("encrypted", call->get_encrypted());
-      send_object(node, "call", "call", this->unit_topic+"/"+short_name.c_str());
-    }
-    return send_object(call->get_stats(), "call", "call_start", this->topic);
-  }
-//************UNIT REPORTING END****
+  //************UNIT REPORTING END****
 
   int send_object(boost::property_tree::ptree data, std::string name, std::string type, std::string topicname)
   {
