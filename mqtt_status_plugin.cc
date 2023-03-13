@@ -281,7 +281,7 @@ public:
     long talkgroup_num = call->get_talkgroup();
     long source_id = call->get_current_source_id();
     std::string short_name = call->get_short_name();
-    if ((this->unit_enabled) && (source_id != 0)) {
+    if ((this->unit_enabled)) {
       boost::property_tree::ptree node;
       std::vector<unsigned long> talkgroup_patches = call->get_system()->get_talkgroup_patch(talkgroup_num);
       std::string patch_string;
@@ -320,7 +320,7 @@ public:
 
   int unit_registration(System *sys, long source_id) {
     //unit_affiliations[source_id] = 0;
-    if ((this->unit_enabled) && (source_id != 0)) {
+    if ((this->unit_enabled)) {
       boost::property_tree::ptree node;
       node.put("unit", source_id );
       node.put("unit_alpha", sys->find_unit_tag(source_id));
@@ -331,7 +331,7 @@ public:
 
   int unit_deregistration(System *sys, long source_id) { 
     //unit_affiliations[source_id] = -1;
-    if ((this->unit_enabled) && (source_id != 0)) {
+    if ((this->unit_enabled)) {
       boost::property_tree::ptree node;
       node.put("unit", source_id );
       node.put("unit_alpha", sys->find_unit_tag(source_id));
@@ -341,7 +341,7 @@ public:
   }  
 
   int unit_acknowledge_response(System *sys, long source_id) { 
-    if ((this->unit_enabled) && (source_id != 0)) {
+    if ((this->unit_enabled)) {
       boost::property_tree::ptree node;
       node.put("unit", source_id );
       node.put("unit_alpha", sys->find_unit_tag(source_id));
@@ -352,7 +352,7 @@ public:
 
   int unit_group_affiliation(System *sys, long source_id, long talkgroup_num) {
     //unit_affiliations[source_id] = talkgroup_num;
-    if ((this->unit_enabled) && (source_id != 0)) {
+    if ((this->unit_enabled)) {
       boost::property_tree::ptree node;
       std::vector<unsigned long> talkgroup_patches = sys->get_talkgroup_patch(talkgroup_num);
       std::string patch_string;
@@ -376,7 +376,7 @@ public:
   }
 
   int unit_data_grant(System *sys, long source_id) {
-    if ((this->unit_enabled) && (source_id != 0)) {
+    if ((this->unit_enabled)) {
       boost::property_tree::ptree node;
       node.put("unit", source_id );
       node.put("unit_alpha", sys->find_unit_tag(source_id));
@@ -386,7 +386,7 @@ public:
   }
 
   int unit_answer_request(System *sys, long source_id, long talkgroup) {
-    if ((this->unit_enabled) && (source_id != 0)) {
+    if ((this->unit_enabled)) {
       boost::property_tree::ptree node;
       node.put("unit", source_id );
       node.put("unit_alpha", sys->find_unit_tag(source_id));
@@ -402,7 +402,7 @@ public:
 
   int unit_location(System *sys, long source_id, long talkgroup_num) {
     //unit_affiliations[source_id] = talkgroup_num;
-    if ((this->unit_enabled) && (source_id != 0)) {
+    if ((this->unit_enabled)) {
       boost::property_tree::ptree node;
       std::vector<unsigned long> talkgroup_patches = sys->get_talkgroup_patch(talkgroup_num);
       std::string patch_string;
