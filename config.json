@@ -18,12 +18,13 @@
     }],
     "plugins": [
     {
-        "name": "example plugin",
+        "name": "MQTT Everything!",
         "library": "libmqtt_status_plugin.so",
         "broker": "tcp://io.adafruit.com:1883",
         "topic": "robotastic/feeds",
         "unit_topic": "robotastic/units",
         "username": "robotastic",
-        "password": "" 
+        "password": "",
+        "refresh": 30
     }]
 }
