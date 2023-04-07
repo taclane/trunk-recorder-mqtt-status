@@ -12,7 +12,6 @@
 #include <cstdlib>
 #include <string>
 #include <map>
-#include <vector>
 #include <cstring>
 #include <mqtt/client.h>
 
@@ -322,7 +321,37 @@ public:
         send_object(node, "end", "end", this->unit_topic+"/"+call_info.short_name.c_str());
       }
     }
-    return 0;
+    boost::property_tree::ptree call_node;
+    //call_node.put("status",call_info.status);
+    call_node.put("process_call_time",call_info.process_call_time);
+    call_node.put("retry_attempt",call_info.retry_attempt);
+    call_node.put("error_count",call_info.error_count);
+    call_node.put("spike_count",call_info.spike_count);
+    call_node.put("freq",call_info.freq);
+    call_node.put("encrypted",call_info.encrypted);
+    call_node.put("emergency",call_info.emergency);
+    call_node.put("tdma_slot",call_info.tdma_slot);
+    call_node.put("phase2_tdma",call_info.phase2_tdma);
+    //call_node.put("transmission_list",call_info.transmission_list = call->get_transmissions();
+    call_node.put("short_name",call_info.short_name);
+    //call_node.put("upload_script",call_info.upload_script = sys->get_upload_script();
+    //call_node.put("audio_archive",call_info.audio_archive = sys->get_audio_archive();
+    //call_node.put("transmission_archive",call_info.transmission_archive = sys->get_transmission_archive();
+    //call_node.put("call_log",call_info.call_log = sys->get_call_log();
+    call_node.put("call_num",call_info.call_num);
+    //call_node.put("compress_wav",call_info.compress_wav);
+    call_node.put("talkgroup",call_info.talkgroup);
+    //call_node.put("talkgroup_display",call_info.talkgroup_display = call->get_talkgroup_display();
+    //call_info.patched_talkgroups = sys->get_talkgroup_patch(call_info.talkgroup);
+    //call_info.min_transmissions_removed = 0;
+    call_node.put("talkgroup_tag",call_info.talkgroup_tag);
+    call_node.put("talkgroup_alpha_tag",call_info.talkgroup_alpha_tag);
+    call_node.put("talkgroup_description",call_info.talkgroup_description);
+    call_node.put("talkgroup_group",call_info.talkgroup_group);
+    call_node.put("audio_type",call_info.audio_type);
+
+    return send_object(call_node, "call", "call_end", this->topic);
+
   }
 
   int unit_registration(System *sys, long source_id) {
