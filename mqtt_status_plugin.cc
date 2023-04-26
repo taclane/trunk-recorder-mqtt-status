@@ -269,10 +269,6 @@ public:
     return send_object(node, "recorders", "recorders", this->topic);
   }
 
-  // int call_start(Call *call) override
-  // {
-  //   return send_object(call->get_stats(), "call", "call_start", this->topic);
-  // }
 
   int send_recorder(Recorder *recorder)
   {
@@ -323,6 +319,7 @@ public:
     }
     boost::property_tree::ptree call_node;
     //call_node.put("status",call_info.status);
+    call_node.put("callNum",call_info.call_num);
     call_node.put("process_call_time",call_info.process_call_time);
     call_node.put("retry_attempt",call_info.retry_attempt);
     call_node.put("error_count",call_info.error_count);
