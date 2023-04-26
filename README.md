@@ -6,9 +6,14 @@ This is a plugin for Trunk Recorder that publish the current status over MQTT. E
 
 1. **Build and install the current version of Trunk Recorder** following these [instructions](https://github.com/robotastic/trunk-recorder/blob/master/docs/INSTALL-LINUX.md). Make sure you do a `sudo make install` at the end to install the Trunk Recorder binary and libaries systemwide. The plugin will be built against these libraries.
 
-2. Now, **install the Paho MQTT C & C++ Libraries**. The full documentation for that is [here](https://github.com/eclipse/paho.mqtt.cpp#unix-and-linux)... but the basic commands are as follows:
+2. **Install the Paho MQTT C & C++ Libraries**.
+```bash
+sudo apt install libpaho-mqtt-dev libpaho-mqttpp-dev
+```
 
-*Install Paho MQTT C*
+If your package manager does not have the Paho MQTT libraries, you can build and install them via source:
+
+- *Install Paho MQTT C*
 ```bash
 git clone https://github.com/eclipse/paho.mqtt.c.git
 cd paho.mqtt.c
@@ -18,7 +23,7 @@ sudo cmake --build build/ --target install
 sudo ldconfig
 ```
 
-*Install Paho MQTT C++*
+- *Install Paho MQTT C++*
 ```bash
 git clone https://github.com/eclipse/paho.mqtt.cpp
 cd paho.mqtt.cpp
@@ -55,7 +60,7 @@ See the included [config.json](./config.json) as an example of how to load this 
 ```yaml
     "plugins": [
     {
-        "name": "example plugin",
+        "name": "MQTT Status",
         "library": "libmqtt_status_plugin.so",
         "broker": "tcp://io.adafruit.com:1883",
         "topic": "robotastic/feeds",
@@ -65,9 +70,13 @@ See the included [config.json](./config.json) as an example of how to load this 
         "refresh": 30
     }]
 ```
+If the plugin cannot be found, or it is being run from a different location, it may be necesarry to supply the full path:
+```yaml
+        "library": "/usr/local/lib/trunk-recorder/libmqtt_status_plugin.so",
+```
 
 ### MQTT Messages
-| Topic | Message | Description |
+| Topic | Sub-Topic | Description |
 | ----- | ------- | ----------- |
 | topic | rates | control channel decode rates |
 | topic | config | trunk-recorder config information, sent at `refresh` interval  |
@@ -78,7 +87,7 @@ See the included [config.json](./config.json) as an example of how to load this 
 | topic | call_start | new calls |
 |topic  | call_end | completed calls |
 | unit_topic/shortname | call | channel grants |
-| unit_topic/shortname | end | call end unit information * |
+| unit_topic/shortname | end | call end unit information\* |
 | unit_topic/shortname | on | unit registration |
 | unit_topic/shortname | off | unit regregistration |
 | unit_topic/shortname | ackresp | unit acknowledge response |
@@ -87,7 +96,7 @@ See the included [config.json](./config.json) as an example of how to load this 
 | unit_topic/shortname | ans_req | uit answer request |
 | unit_topic/shortname | location | unit location update |
 
-*`end` is not a trunking message, but sent after trunk-recorder ends the call.  This can be used to track conventional non-trunked calls.
+\*`end` is not a trunking message, but sent after trunk-recorder ends the call.  This can be used to track conventional non-trunked calls.
 
 ### Mosquitto MQTT Broker
 The Mosquitto MQTT is an easy way to have a local MQTT broker. It can be installed from a lot of package managers. 
