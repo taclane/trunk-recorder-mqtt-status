@@ -296,7 +296,6 @@ public:
       node.put("talkgroup_patches", patch_string);
       node.put("talkgroup_alpha", call->get_talkgroup_tag());
       node.put("encrypted", call->get_encrypted());
-      node.put("callNum",call->get_call_num());
       send_object(node, "call", "call", this->unit_topic+"/"+short_name);
     }
     return send_object(call->get_stats(), "call", "call_start", this->topic);
@@ -327,7 +326,6 @@ public:
         node.put("talkgroup_patches", patch_string);
         node.put("talkgroup_alpha", call_info.talkgroup_alpha_tag);
         node.put("encrypted", call_info.encrypted);
-        node.put("callNum",call_info.call_num);
         send_object(node, "end", "end", this->unit_topic+"/"+call_info.short_name.c_str());
       }
     }
