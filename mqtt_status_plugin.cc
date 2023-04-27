@@ -288,6 +288,7 @@ public:
         first = false;
         patch_string += std::to_string(TGID);
       }
+      node.put("callNum", call->get_call_num());
       node.put("system", short_name );
       node.put("unit", source_id );
       node.put("unit_alpha", call->get_system()->find_unit_tag(source_id));
@@ -306,6 +307,7 @@ public:
     if (this->unit_enabled) {
       boost::property_tree::ptree node;
       BOOST_FOREACH (auto& source, call_info.transmission_source_list) {
+        node.put("callNum", call_info.call_num);
         node.put("system", call_info.short_name);
         node.put("unit", source.source );
         node.put("unit_alpha", source.tag);
