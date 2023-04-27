@@ -91,7 +91,7 @@ If the plugin cannot be found, or it is being run from a different location, it 
 | unit_topic/shortname | call | channel grants |
 | unit_topic/shortname | end | call end unit information\* |
 | unit_topic/shortname | on | unit registration |
-| unit_topic/shortname | off | unit regregistration |
+| unit_topic/shortname | off | unit degregistration |
 | unit_topic/shortname | ackresp | unit acknowledge response |
 | unit_topic/shortname | join | unit group affiliation |
 | unit_topic/shortname | data | unit data grant |
