@@ -80,12 +80,16 @@ public:
    */
   int system_rates(std::vector<System *> systems, float timeDiff) override
   {
-    boost::property_tree::ptree nodes;
+    boost::property_tree::ptree sys_nodes;
 
     for (std::vector<System *>::iterator it = systems.begin(); it != systems.end(); ++it)
     {
       System *system = *it;
-      nodes.push_back(std::make_pair("", system->get_stats_current(timeDiff)));
+      boost::property_tree::ptree sys_node;
+
+      sys_node = system->get_stats_current(timeDiff);
+      sys_node.put("shortName", system->get_short_name());
+      sys_nodes.push_back(std::make_pair("", sys_node));
     }
     
     /**
@@ -94,7 +98,7 @@ public:
     */ 
     resend_configs();
 
-    return send_object(nodes, "rates", "rates", this->topic);
+    return send_object(sys_nodes, "rates", "rates", this->topic);
   }
 
 //m_done(false),
