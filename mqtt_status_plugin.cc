@@ -80,25 +80,26 @@ public:
    */
   int system_rates(std::vector<System *> systems, float timeDiff) override
   {
-    boost::property_tree::ptree sys_nodes;
+    boost::property_tree::ptree system_node;
+    boost::property_tree::ptree systems_node;
 
     for (std::vector<System *>::iterator it = systems.begin(); it != systems.end(); ++it)
     {
       System *system = *it;
-      boost::property_tree::ptree sys_node;
-
-      sys_node = system->get_stats_current(timeDiff);
-      sys_node.put("shortName", system->get_short_name());
-      sys_nodes.push_back(std::make_pair("", sys_node));
+      system_node = system->get_stats_current(timeDiff);
+      system_node.put("shortName", system->get_short_name());
+      systems_node.push_back(std::make_pair("", system_node));
     }
     
-    /**
+    /*
      * system_rates() is triggered every ~3 sec. Periodic tasks can more efficiently be 
      * checked here instead of each cycle in poll_one().
     */ 
     resend_configs();
+    /*
+    */
 
-    return send_object(sys_nodes, "rates", "rates", this->topic);
+    return send_object(systems_node, "rates", "rates", this->topic);
   }
 
 //m_done(false),
