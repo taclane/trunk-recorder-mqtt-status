@@ -44,7 +44,8 @@ class Mqtt_Status : public Plugin_Api, public virtual mqtt::callback, public vir
 
   time_t config_resend_time = time(NULL);
 
- // std::map<long, long> unit_affiliations;
+  std::map<std::string, int> system_map;
+
 protected:
   void on_failure(const mqtt::token &tok) override
   {
@@ -72,12 +73,7 @@ public:
          << (tok ? tok->get_message_id() : -1) << endl;
   }
 
-  /**
-   * The telemetry client connects to a WebFocket server and sends a message every
-   * second containing an integer count. This example can be used as the basis for
-   * programs where a client connects and pushes data for logging, stress/load
-   * testing, etc.
-   */
+
   int system_rates(std::vector<System *> systems, float timeDiff) override
   {
     boost::property_tree::ptree system_node;
@@ -309,6 +305,11 @@ public:
   // Use the call_end to catch conventional p25 UID/TG information since there are no control channel messages
   int call_end(Call_Data_t call_info) override
   {
+    int sys_num = system_map[call_info.short_name];
+    System *sys = this->systems[sys_num];
+
+    //BOOST_LOG_TRIVIAL(error) << sys->get_short_name();
+
     if (this->unit_enabled) {
       boost::property_tree::ptree node;
       std::vector<unsigned long> talkgroup_patches = call_info.patched_talkgroups;
@@ -598,6 +599,17 @@ public:
     this->sources = sources;
     this->systems = systems;
     this->config = config;
+
+    // build a system_map in case you need to lookup a system by shortname later.
+    int sys_number = 0;
+    for (std::vector<System *>::iterator it = systems.begin(); it != systems.end(); ++it) {
+      System *sys = (System *)*it;
+      
+      std::string short_name = sys->get_short_name();
+      this->system_map[short_name] = sys_number;
+      
+      sys_number += 1;
+    }
 
     return 0;
   }
