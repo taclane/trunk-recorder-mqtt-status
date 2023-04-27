@@ -296,6 +296,7 @@ public:
       node.put("talkgroup_patches", patch_string);
       node.put("talkgroup_alpha", call->get_talkgroup_tag());
       node.put("encrypted", call->get_encrypted());
+      node.put("callNum",call->get_call_num());
       send_object(node, "call", "call", this->unit_topic+"/"+short_name);
     }
     return send_object(call->get_stats(), "call", "call_start", this->topic);
@@ -306,13 +307,27 @@ public:
   {
     if (this->unit_enabled) {
       boost::property_tree::ptree node;
+      std::vector<unsigned long> talkgroup_patches = call_info.patched_talkgroups;
+      std::string patch_string;
+      bool first = true;
+      BOOST_FOREACH (auto& TGID, talkgroup_patches) {
+        if (!first) { patch_string += ","; }
+        first = false;
+        patch_string += std::to_string(TGID);
+      }
+
       BOOST_FOREACH (auto& source, call_info.transmission_source_list) {
         node.put("callNum", call_info.call_num);
         node.put("system", call_info.short_name);
         node.put("unit", source.source );
         node.put("unit_alpha", source.tag);
+        node.put("unit_time", source.time);
+        node.put("unit_position", source.position);
         node.put("talkgroup", call_info.talkgroup);
+        node.put("talkgroup_patches", patch_string);
         node.put("talkgroup_alpha", call_info.talkgroup_alpha_tag);
+        node.put("encrypted", call_info.encrypted);
+        node.put("callNum",call_info.call_num);
         send_object(node, "end", "end", this->unit_topic+"/"+call_info.short_name.c_str());
       }
     }
