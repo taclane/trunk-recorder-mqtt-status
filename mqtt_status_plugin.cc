@@ -23,7 +23,7 @@ const auto TIMEOUT = std::chrono::seconds(10);
 class Mqtt_Status : public Plugin_Api, public virtual mqtt::callback, public virtual mqtt::iaction_listener
 {
   bool m_open;
-  
+
   bool unit_enabled = false;
 
   int refresh;
@@ -277,9 +277,12 @@ public:
       node.put("system", short_name );
       node.put("unit", source_id );
       node.put("unit_alpha", call->get_system()->find_unit_tag(source_id));
+      node.put("start_time", call->get_start_time());
+      node.put("freq", call->get_freq());
       node.put("talkgroup", talkgroup_num);
       node.put("talkgroup_patches", patch_string);
-      node.put("talkgroup_alpha", call->get_talkgroup_tag());
+      node.put("talkgroup_alpha_tag", call->get_talkgroup_tag());
+      node.put("talkgroup_patches", patch_string);
       node.put("encrypted", call->get_encrypted());
       send_object(node, "call", "call", this->unit_topic+"/"+short_name);
     }
@@ -291,32 +294,53 @@ public:
     // Send information about a completed call and report participataing units (end)
     // This enables the collection unit information in conventional systems without a control channel
 
+    // We need access to the system to grab unit alphas.
+    System *sys = get_system_by_shortname(call_info.short_name);
+
+    // Generate list of talkgroup patches
+    std::vector<unsigned long> talkgroup_patches = call_info.patched_talkgroups;
+    std::string patch_string;
+    bool first = true;
+    BOOST_FOREACH (auto& TGID, talkgroup_patches)
+    {
+      if (!first) { patch_string += ","; }
+      first = false;
+      patch_string += std::to_string(TGID);
+    }
+
     if (this->unit_enabled)
     {
       boost::property_tree::ptree node;
-      std::vector<unsigned long> talkgroup_patches = call_info.patched_talkgroups;
-      std::string patch_string;
-      bool first = true;
-      BOOST_FOREACH (auto& TGID, talkgroup_patches)
-      {
-        if (!first) { patch_string += ","; }
-        first = false;
-        patch_string += std::to_string(TGID);
-      }
 
-      BOOST_FOREACH (auto& source, call_info.transmission_source_list)
+      // Transmission (in transmission_list) doesn't store position, so duplicate the logic to calculate it.
+      double total_length = 0;
+
+      BOOST_FOREACH (auto& transmission, call_info.transmission_list)
       {
         node.put("callNum", call_info.call_num);
         node.put("system", call_info.short_name);
-        node.put("unit", source.source );
-        node.put("unit_alpha", source.tag);
-        node.put("unit_time", source.time);
-        node.put("unit_position", source.position);
+        node.put("unit", transmission.source);
+        node.put("unit_alpha", sys->find_unit_tag(transmission.source));
+        node.put("start_time", transmission.start_time);
+        node.put("stop_time", transmission.stop_time);
+        node.put("sample_count", transmission.sample_count);
+        node.put("spike_count", transmission.spike_count);
+        node.put("error_count", transmission.error_count);
+        node.put("freq", call_info.freq);
+        node.put("length", transmission.length);
+        node.put("transmission_filename", transmission.filename);
+        node.put("transmission_base_filename", transmission.base_filename);
+        node.put("call_filename", call_info.filename);
+        node.put("position", total_length);
         node.put("talkgroup", call_info.talkgroup);
+        node.put("talkgroup_alpha_tag",call_info.talkgroup_alpha_tag);
+        node.put("talkgroup_description",call_info.talkgroup_description);
+        node.put("talkgroup_group",call_info.talkgroup_group);
         node.put("talkgroup_patches", patch_string);
-        node.put("talkgroup_alpha", call_info.talkgroup_alpha_tag);
         node.put("encrypted", call_info.encrypted);
         send_object(node, "end", "end", this->unit_topic+"/"+call_info.short_name.c_str());
+
+        total_length = total_length + transmission.length;
       }
     }
     boost::property_tree::ptree call_node;
@@ -348,7 +372,7 @@ public:
     call_node.put("talkgroup_description",call_info.talkgroup_description);
     call_node.put("talkgroup_group",call_info.talkgroup_group);
     call_node.put("audio_type",call_info.audio_type);
-    
+
     // call_node.put("transmission_source_list",call_info.transmission_source_list);
     // call_node.put("transmission_error_list",call_info.transmission_error_list);
     call_node.put("start_time",call_info.start_time);
@@ -373,7 +397,7 @@ public:
   }
 
   int unit_deregistration(System *sys, long source_id) override
-  { 
+  {
     // Unit de-registration on a system (off)
     if ((this->unit_enabled))
     {
@@ -384,10 +408,10 @@ public:
       return send_object(node, "off", "off", this->unit_topic+"/"+sys->get_short_name().c_str());
     }
     return 1;
-  }  
+  }
 
   int unit_acknowledge_response(System *sys, long source_id) override
-  { 
+  {
     // Unit acknowledge response (ackresp))
     if ((this->unit_enabled))
     {
@@ -425,7 +449,7 @@ public:
       {
         node.put("talkgroup_alpha", tg->alpha_tag);
       }
-      return send_object(node, "join", "join", this->unit_topic+"/"+sys->get_short_name().c_str());  
+      return send_object(node, "join", "join", this->unit_topic+"/"+sys->get_short_name().c_str());
     }
     return 1;
   }
@@ -464,10 +488,10 @@ public:
     return 1;
   }
 
-  int unit_location(System *sys, long source_id, long talkgroup_num) override 
+  int unit_location(System *sys, long source_id, long talkgroup_num) override
   {
     // Unit location/roaming update (location)
-    if ((this->unit_enabled)) 
+    if ((this->unit_enabled))
     {
       boost::property_tree::ptree node;
       std::vector<unsigned long> talkgroup_patches = sys->get_talkgroup_patch(talkgroup_num);
@@ -496,10 +520,10 @@ public:
 
   int resend_configs()
   {
-    // The full list of system configs, systems, and recorders was originally sent 
+    // The full list of system configs, systems, and recorders was originally sent
     // once on startup.  The "refresh" option controls the interval they are resent.
     time_t now_time = time(NULL);
-      
+
     if (((now_time - this->config_resend_time ) > refresh ) && (this->config_resend_time > 0))
     {
       std::vector<Recorder *> recorders;
@@ -514,7 +538,7 @@ public:
       send_systems(this->systems);
       send_recorders(recorders);
       this->config_resend_time = now_time;
-    } 
+    }
 
     return 0;
   }
@@ -603,7 +627,7 @@ public:
       BOOST_LOG_TRIVIAL(error) << "MQTT Status Plugin - " <<exc.what() << endl;
     }
 
-    return 0; 
+    return 0;
   }
 
   int poll_one() override
@@ -616,7 +640,7 @@ public:
   {
     // Plugin initialization; called after parse_config.
 
-    frequency_format = config->frequency_format; 
+    frequency_format = config->frequency_format;
     this->sources = sources;
     this->systems = systems;
     this->config = config;
@@ -664,8 +688,8 @@ public:
 
   int setup_config(std::vector<Source *> sources, std::vector<System *> systems) override
   {
-    // Called at the same periodicity of system_rates, this can be use to accomplish 
-    // occasional plugin tasks more efficiently than checking each cycle of poll_one().  
+    // Called at the same periodicity of system_rates, this can be use to accomplish
+    // occasional plugin tasks more efficiently than checking each cycle of poll_one().
     resend_configs();
 
     return 0;
@@ -681,12 +705,12 @@ public:
     BOOST_LOG_TRIVIAL(info) << " MQTT Status Plugin Broker Username: " << this->username;
     this->topic = cfg.get<std::string>("topic", "");
     BOOST_LOG_TRIVIAL(info) << " MQTT Status Plugin Topic: " << this->topic;
-    
+
     this->unit_topic = cfg.get<std::string>("unit_topic", "");
-    if (this->unit_topic == "") 
+    if (this->unit_topic == "")
     {
       BOOST_LOG_TRIVIAL(info) << " MQTT Unit Status Plugin: Disabled";
-    } 
+    }
     else
     {
       BOOST_LOG_TRIVIAL(info) << " MQTT Unit Status Plugin Topic: " << this->unit_topic;
@@ -695,7 +719,7 @@ public:
 
     this->refresh = cfg.get<int>("refresh", 60);
     BOOST_LOG_TRIVIAL(info) << " MQTT Recorder/Source Refresh Interval: " << this->refresh;
-    
+
     return 0;
   }
 
