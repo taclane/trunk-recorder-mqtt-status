@@ -297,7 +297,7 @@ public:
       node.put("freq", call->get_freq());
       node.put("talkgroup", talkgroup_num);
       node.put("talkgroup_patches", patch_string);
-      node.put("talkgroup_alpha", call->get_talkgroup_tag());
+      node.put("talkgroup_alpha_tag", call->get_talkgroup_tag());
       node.put("talkgroup_patches", patch_string);
       node.put("encrypted", call->get_encrypted());
       send_object(node, "call", "call", this->unit_topic+"/"+short_name);
