@@ -335,7 +335,7 @@ public:
         node.put("unit", transmission.source);
         node.put("unit_alpha", sys->find_unit_tag(transmission.source));
         node.put("start_time", transmission.start_time);
-        node.put("end_time", transmission.start_time);
+        node.put("stop_time", transmission.stop_time);
         node.put("sample_count", transmission.sample_count);
         node.put("spike_count", transmission.spike_count);
         node.put("error_count", transmission.error_count);
