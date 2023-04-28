@@ -293,9 +293,12 @@ public:
       node.put("system", short_name );
       node.put("unit", source_id );
       node.put("unit_alpha", call->get_system()->find_unit_tag(source_id));
+      node.put("start_time", call->get_start_time());
+      node.put("freq", call->get_freq());
       node.put("talkgroup", talkgroup_num);
       node.put("talkgroup_patches", patch_string);
       node.put("talkgroup_alpha", call->get_talkgroup_tag());
+      node.put("talkgroup_patches", patch_string);
       node.put("encrypted", call->get_encrypted());
       send_object(node, "call", "call", this->unit_topic+"/"+short_name);
     }
@@ -343,7 +346,6 @@ public:
         node.put("call_filename", call_info.filename);
         node.put("position", total_length);
         node.put("talkgroup", call_info.talkgroup);
-        node.put("talkgroup_alpha", call_info.talkgroup_alpha_tag);
         node.put("talkgroup_alpha_tag",call_info.talkgroup_alpha_tag);
         node.put("talkgroup_description",call_info.talkgroup_description);
         node.put("talkgroup_group",call_info.talkgroup_group);
