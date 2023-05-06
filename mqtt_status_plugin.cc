@@ -31,7 +31,7 @@ class Mqtt_Status : public Plugin_Api, public virtual mqtt::callback, public vir
   std::vector<System *> systems;
   std::vector<Call *> calls;
   Config *config;
-  std::string client_name;
+  std::string client_id;
   std::string mqtt_broker;
   std::string username;
   std::string password;
@@ -561,7 +561,7 @@ public:
     // Open the connection to the destination MQTT server.
     const char *LWT_PAYLOAD = "Last will and testament.";
     // set up access channels to only log interesting things
-    client = new mqtt::async_client(this->mqtt_broker, this->client_name, "./store");
+    client = new mqtt::async_client(this->mqtt_broker, this->client_id, "./store");
 
     mqtt::connect_options connOpts;
 
@@ -701,8 +701,8 @@ public:
     //  Called before init, and passed the Configuration information in the settings file for this plugin.
     this->mqtt_broker = cfg.get<std::string>("broker", "tcp://localhost:1883");
     BOOST_LOG_TRIVIAL(info) << " MQTT Status Plugin Broker: " << this->mqtt_broker;
-    this->client_name = cfg.get<std::string>("clientname", "tr-status");
-    BOOST_LOG_TRIVIAL(info) << " MQTT Status Plugin Client Name: " << this->client_name;
+    this->client_id = cfg.get<std::string>("client_id", "tr-status");
+    BOOST_LOG_TRIVIAL(info) << " MQTT Status Plugin Client Name: " << this->client_id;
     this->username = cfg.get<std::string>("username", "");
     this->password = cfg.get<std::string>("password", "");
     BOOST_LOG_TRIVIAL(info) << " MQTT Status Plugin Broker Username: " << this->username;
