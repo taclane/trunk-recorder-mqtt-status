@@ -42,7 +42,6 @@ class Mqtt_Status : public Plugin_Api, public virtual mqtt::callback, public vir
   mqtt::async_client *client;
 
   time_t config_resend_time = time(NULL);
-  time_t calls_resend_time = time(NULL);
 
   std::map<std::string, int> system_map;
 
@@ -229,7 +228,6 @@ public:
     // Set a pointer to the call list if needed later
     this->tr_calls = calls;
     this->tr_calls_set = true;
-    this->calls_resend_time = time(NULL);
     
     boost::property_tree::ptree node;
 
