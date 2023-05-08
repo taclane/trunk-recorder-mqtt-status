@@ -24,8 +24,8 @@ class Mqtt_Status : public Plugin_Api, public virtual mqtt::callback, public vir
 {
   bool m_open;
 
-  bool unit_enabled = false;
-  //bool tr_calls_set = false;
+  bool unit_enabled;
+  bool tr_calls_set;
 
   int refresh;
   std::vector<Source *> sources;
@@ -42,6 +42,7 @@ class Mqtt_Status : public Plugin_Api, public virtual mqtt::callback, public vir
   mqtt::async_client *client;
 
   time_t config_resend_time = time(NULL);
+  time_t calls_resend_time = time(NULL);
 
   std::map<std::string, int> system_map;
 
@@ -226,10 +227,9 @@ public:
   {
     // Send the list of all active calls
     // Set a pointer to the call list if needed later
-    //if (tr_calls_set == false) {
-    //this->tr_calls = calls;
-    //tr_calls_set = true;
-    //}
+    this->tr_calls = calls;
+    this->tr_calls_set = true;
+    this->calls_resend_time = time(NULL);
     
     boost::property_tree::ptree node;
 
@@ -553,6 +553,16 @@ public:
     return 0;
   }
 
+  int resend_calls()
+  {
+    // use a pointer from calls_active() to ensure updates to the active call 
+    // list every few seconds
+    BOOST_LOG_TRIVIAL(debug) << " resending calls"; 
+    calls_active(this->tr_calls);
+
+    return 0;
+  }
+
   System *get_system_by_shortname(std::string short_name)
   {
     // Attempt to find a system by shortname to aid in metadata lookups
@@ -622,8 +632,8 @@ public:
     root.add_child(name, data);
     root.put("type", type);
     root.put("timestamp", now_time);
-    if (this->instance_id != "") {
-       root.put("instanceID", this->instance_id);
+    if (instance_id != "") {
+       root.put("instanceID", instance_id);
     }
     std::stringstream stats_str;
     boost::property_tree::write_json(stats_str, root);
@@ -653,7 +663,8 @@ public:
     // Plugin initialization; called after parse_config.
 
     frequency_format = config->frequency_format;
-    this->instance_id = config->instance_id;
+    instance_id = config->instance_id;
+    tr_calls_set = false;
     
     this->sources = sources;
     this->systems = systems;
@@ -705,10 +716,7 @@ public:
     // Called at the same periodicity of system_rates, this can be use to accomplish
     // occasional plugin tasks more efficiently than checking each cycle of poll_one().
     resend_configs();
-    
-    //if (tr_calls_set==true) {
-      //calls_active(this->tr_calls);
-    //}
+    resend_calls();
 
     return 0;
   }
@@ -730,6 +738,7 @@ public:
     if (this->unit_topic == "")
     {
       BOOST_LOG_TRIVIAL(info) << " MQTT Unit Status Plugin: Disabled";
+      this->unit_enabled = false;
     }
     else
     {
