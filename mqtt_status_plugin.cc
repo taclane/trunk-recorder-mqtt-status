@@ -235,7 +235,7 @@ public:
     for (std::vector<Call *>::iterator it = calls.begin(); it != calls.end(); ++it)
     {
       Call *call = *it;
-      if ( (call->get_current_length() > 0) && (!call->is_conventional()) ) {
+      if ( (call->get_current_length() > 0) || (!call->is_conventional()) ) {
         node.push_back(std::make_pair("", call->get_stats()));
       }
     }
