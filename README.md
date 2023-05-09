@@ -45,10 +45,10 @@ sudo make install
 ```
 
 ## Configure
-
+__Plugin options:__
 | Key        | Required | Default Value | Type   | Description                                                  |
 |------------| :------: | ------------- | ------ | ------------------------------------------------------------ |
-| client_id  |          | tr-status     | string | This is the optional client id to send to MQTT |
+| client_id  |          | tr-status     | string | This is the optional client id to send to MQTT. |
 | broker     |    ✓     |   tcp://localhost:1883            | string | The URL for the MQTT Message Broker. It should include the protocol used: **tcp**, **ssl**, **ws**, **wss** and the port, which is generally 1883 for tcp, 8883 for ssl, and 443 for ws. |
 | topic      |    ✓     |               | string | This is the base topic to use. The plugin will create subtopics for the different types of status messages. |
 | unit_topic |          |               | string | Optional field to enable reporting of unit stats over MQTT. |
@@ -56,8 +56,12 @@ sudo make install
 | password   |          |               | string | If a password is required for the broker, add it here. |
 | refresh    |          |        60     | int    | Recorders and configs are normally only sent at startup, this sets the interval this information is refreshed. A value of -1 will disable. |
 
+__Trunk-Recorder options:__
+| Location | Key        | Required | Default Value | Type   | Description                                                  |
+|------------|------------| :------: | ------------- | ------ | ------------------------------------------------------------ |
+| [top-level](./config.json) | instance_id |          |      | string | If multiple `trunk-recorder`s are reporting to a central location, an `instanceId` can be appended to each MQTT message to identify data origin. |
 
-### Plugin Object Example
+### Plugin Usage Example
 See the included [config.json](./config.json) as an example of how to load this plugin.
 
 ```yaml
