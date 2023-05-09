@@ -42,7 +42,8 @@ class Mqtt_Status : public Plugin_Api, public virtual mqtt::callback, public vir
   mqtt::async_client *client;
 
   time_t config_resend_time = time(NULL);
-
+  time_t call_resend_time = time(NULL);
+  
   std::map<std::string, int> system_map;
 
 protected:
@@ -234,7 +235,7 @@ public:
     for (std::vector<Call *>::iterator it = calls.begin(); it != calls.end(); ++it)
     {
       Call *call = *it;
-      if (call->get_current_length() > 0) {
+      if ( (call->get_current_length() > 0) && (!call->is_conventional()) ) {
         node.push_back(std::make_pair("", call->get_stats()));
       }
     }
@@ -555,9 +556,14 @@ public:
   {
     // use a pointer from calls_active() to ensure updates to the active call 
     // list every few seconds
-    BOOST_LOG_TRIVIAL(debug) << " resending calls"; 
-    calls_active(this->tr_calls);
+    time_t now_time = time(NULL);
 
+    if (((now_time - this->call_resend_time ) > 1 ))
+    {
+      BOOST_LOG_TRIVIAL(debug) << " resending calls"; 
+      calls_active(this->tr_calls);
+      this->call_resend_time = now_time;
+    }
     return 0;
   }
 
@@ -653,6 +659,7 @@ public:
   int poll_one() override
   {
     // Called during each pass thru the main loop of trunk-recorder.
+    resend_calls();
     return 0;
   }
 
@@ -714,7 +721,7 @@ public:
     // Called at the same periodicity of system_rates, this can be use to accomplish
     // occasional plugin tasks more efficiently than checking each cycle of poll_one().
     resend_configs();
-    resend_calls();
+    // resend_calls();
 
     return 0;
   }
