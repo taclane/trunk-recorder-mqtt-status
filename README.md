@@ -1,4 +1,4 @@
-# Trunk Recorder MQTT Status Plugin
+# Trunk Recorder MQTT Status (and Units!) Plugin
 
 This is a plugin for Trunk Recorder that publish the current status over MQTT. External programs can use the MQTT messages to display what is going on.
 
