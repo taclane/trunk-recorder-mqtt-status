@@ -310,29 +310,48 @@ public:
 
     //BOOST_LOG_TRIVIAL(error) << sys->get_short_name();
 
+    // Generate list of talkgroup patches
+    std::vector<unsigned long> talkgroup_patches = call_info.patched_talkgroups;
+    bool first = true;
+    std::string patch_string;
+    BOOST_FOREACH (auto& TGID, talkgroup_patches) {
+      if (!first) { patch_string += ","; }
+      first = false;
+      patch_string += std::to_string(TGID);
+    }
+
     if (this->unit_enabled) {
       boost::property_tree::ptree node;
-      std::vector<unsigned long> talkgroup_patches = call_info.patched_talkgroups;
-      std::string patch_string;
-      bool first = true;
-      BOOST_FOREACH (auto& TGID, talkgroup_patches) {
-        if (!first) { patch_string += ","; }
-        first = false;
-        patch_string += std::to_string(TGID);
-      }
 
-      BOOST_FOREACH (auto& source, call_info.transmission_source_list) {
+      // Transmission (in transmission_list) doesn't store position, so duplicate the logic to calculate it.
+      double total_length = 0;
+
+      BOOST_FOREACH (auto& transmission, call_info.transmission_list) {
         node.put("callNum", call_info.call_num);
         node.put("system", call_info.short_name);
-        node.put("unit", source.source );
-        node.put("unit_alpha", source.tag);
-        node.put("unit_time", source.time);
-        node.put("unit_position", source.position);
+        node.put("unit", transmission.source);
+        node.put("unit_alpha", sys->find_unit_tag(transmission.source));
+        node.put("start_time", transmission.start_time);
+        node.put("end_time", transmission.start_time);
+        node.put("sample_count", transmission.sample_count);
+        node.put("spike_count", transmission.spike_count);
+        node.put("error_count", transmission.error_count);
+        node.put("freq", call_info.freq);
+        node.put("length", transmission.length);
+        node.put("transmission_filename", transmission.filename);
+        node.put("transmission_base_filename", transmission.base_filename);
+        node.put("call_filename", call_info.filename);
+        node.put("position", total_length);
         node.put("talkgroup", call_info.talkgroup);
-        node.put("talkgroup_patches", patch_string);
         node.put("talkgroup_alpha", call_info.talkgroup_alpha_tag);
+        node.put("talkgroup_alpha_tag",call_info.talkgroup_alpha_tag);
+        node.put("talkgroup_description",call_info.talkgroup_description);
+        node.put("talkgroup_group",call_info.talkgroup_group);
+        node.put("talkgroup_patches", patch_string);
         node.put("encrypted", call_info.encrypted);
         send_object(node, "end", "end", this->unit_topic+"/"+call_info.short_name.c_str());
+
+        total_length = total_length + transmission.length;
       }
     }
     boost::property_tree::ptree call_node;
