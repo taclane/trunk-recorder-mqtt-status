@@ -22,7 +22,7 @@
 ########################################################################
 
 cmake_minimum_required(VERSION 3.2)
-project(Trunk-Recorder CXX C)
+project(Trunk-Recorder-mqtt CXX C)
 
 # Select the release build type by default to get optimization flags
 if(NOT CMAKE_BUILD_TYPE)
@@ -37,7 +37,7 @@ list(INSERT CMAKE_MODULE_PATH 0 ${CMAKE_SOURCE_DIR}/cmake/Modules)
 
 # Set the version information here
 set(VERSION_MAJOR 4)
-set(VERSION_API   4)
+set(VERSION_API   5)
 set(VERSION_ABI   0)
 set(VERSION_PATCH git)
 
@@ -63,12 +63,9 @@ set(CMAKE_INSTALL_RPATH_USE_LINK_PATH TRUE)
 # Install directories
 ########################################################################
 include(FindPkgConfig)
-#find_package(Gnuradio REQUIRED)
+find_package(Gnuradio REQUIRED)
 #include(GrVersion)
-#
-#set(GR_REQUIRED_COMPONENTS RUNTIME ANALOG BLOCKS DIGITAL FILTER FFT PMT)
-find_package(Gnuradio)
-# REQUIRED COMPONENTS runtime analog blocks digital filter fft)
+
 
 if(NOT CMAKE_MODULES_DIR)
   set(CMAKE_MODULES_DIR lib${LIB_SUFFIX}/cmake)
@@ -77,10 +74,6 @@ endif(NOT CMAKE_MODULES_DIR)
 
 if(Gnuradio_VERSION VERSION_LESS "3.8")
     find_package(Volk)
-endif()
-
-if(NOT Gnuradio_FOUND)
-    message(FATAL_ERROR "GnuRadio Runtime required to compile gqrx")
 endif()
 
 
@@ -131,9 +124,13 @@ message(STATUS "GnuRadio Version: " ${GNURADIO_VERSION})
 #find_package(LibUHD)
 find_package(OpenSSL REQUIRED)
 #find_package(CURL REQUIRED)
-find_library(paho-mqttpp3 NAMES libpaho-mqttpp3.a libpaho-mqttpp3.so REQUIRED)
-find_library(paho-mqtt3a NAMES libpaho-mqtt3as.a libpaho-mqtt3as.so REQUIRED)
+find_package(eclipse-paho-mqtt-c REQUIRED)
+find_package(PahoMqttCpp REQUIRED)
 find_library(trunk-recorder NAMES trunk-recorder/libtrunk-recorder.a REQUIRED)
+
+set(PahoMqttC_LIBRARIES eclipse-paho-mqtt-c::paho-mqtt3as)
+set(PahoMqttCpp_LIBRARIES PahoMqttCpp::paho-mqttpp3)
+GET_FILENAME_COMPONENT(TRUNK-RECORDER_LIBRARIES "${trunk-recorder}" PATH)
 
 ########################################################################
 # Setup boost
@@ -192,14 +189,12 @@ include_directories(
     ${CURL_INCLUDE_DIR}
     "lib"
 )
-#    ${PROTOBUF_INCLUDE_DIR}
-#    ${GRPC_INCLUDE_DIR}
-#)
 
 link_directories(
     ${Boost_LIBRARY_DIRS}
     ${OPENSSL_ROOT_DIR}/lib
     ${CMAKE_INSTALL_PREFIX}/lib/trunk-recorder
+    ${TRUNK-RECORDER_LIBRARIES}
 )
 
 set(CMAKE_CXX_FLAGS_DEBUG "-Wall -Wno-unused-local-typedef -Wno-deprecated-declarations -Wno-error=deprecated-declarations -g3")
@@ -208,47 +203,18 @@ SET(CMAKE_CXX_STANDARD 11)
 
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -pthread -Wno-narrowing -fvisibility=hidden -fPIC")
 
-
-
-
-
-
-
-
 include(GNUInstallDirs)
 include_directories("/usr/local/include")
-
-
-#target_compile_options(
-#    imbe_vocoder PRIVATE
-#    "-w"
-#)
-
 
 add_library(mqtt_status_plugin
 MODULE
   mqtt_status_plugin.cc
 )
 
-target_link_libraries(mqtt_status_plugin ${trunk-recorder} ssl crypto ${paho-mqttpp3}  ${paho-mqtt3a} ${Boost_LIBRARIES} ${GNURADIO_PMT_LIBRARIES} ${GNURADIO_RUNTIME_LIBRARIES} ${GNURADIO_FILTER_LIBRARIES} ${GNURADIO_DIGITAL_LIBRARIES} ${GNURADIO_ANALOG_LIBRARIES} ${GNURADIO_AUDIO_LIBRARIES} ${GNURADIO_UHD_LIBRARIES} ${UHD_LIBRARIES} ${GNURADIO_BLOCKS_LIBRARIES} ${GNURADIO_OSMOSDR_LIBRARIES}  ${LIBOP25_REPEATER_LIBRARIES} gnuradio-op25_repeater)
+target_link_libraries(mqtt_status_plugin ${trunk-recorder} ssl crypto ${PahoMqttC_LIBRARIES} ${PahoMqttCpp_LIBRARIES} ${Boost_LIBRARIES} ${GNURADIO_PMT_LIBRARIES} ${GNURADIO_RUNTIME_LIBRARIES} ${GNURADIO_FILTER_LIBRARIES} ${GNURADIO_DIGITAL_LIBRARIES} ${GNURADIO_ANALOG_LIBRARIES} ${GNURADIO_AUDIO_LIBRARIES} ${GNURADIO_UHD_LIBRARIES} ${UHD_LIBRARIES} ${GNURADIO_BLOCKS_LIBRARIES} ${GNURADIO_OSMOSDR_LIBRARIES}  ${LIBOP25_REPEATER_LIBRARIES} gnuradio-op25_repeater)
 
 if(NOT Gnuradio_VERSION VERSION_LESS "3.8")
-
-    target_link_libraries(mqtt_status_plugin
-
-    ) 
-
-   # gnuradio::gnuradio-analog
-   # gnuradio::gnuradio-blocks
-   # gnuradio::gnuradio-digital
-   # gnuradio::gnuradio-filter
-   # gnuradio::gnuradio-pmt
-
+    target_link_libraries(mqtt_status_plugin) 
 endif()
 
 install(TARGETS mqtt_status_plugin LIBRARY DESTINATION ${CMAKE_INSTALL_PREFIX}/lib/trunk-recorder)
-
-
-
-
-

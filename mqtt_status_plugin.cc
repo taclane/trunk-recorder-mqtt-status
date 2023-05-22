@@ -474,6 +474,8 @@ public:
     if (m_open == false)
       return 0;
 
+    time_t now_time = time(NULL);
+
     boost::property_tree::ptree root;
     //std::string object_topic = topicname;
 
@@ -483,6 +485,7 @@ public:
     object_topic = object_topic + "/" + type;
     root.add_child(name, data);
     root.put("type", type);
+    root.put("timestamp", now_time);
 
     std::stringstream stats_str;
     boost::property_tree::write_json(stats_str, root);
