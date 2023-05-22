@@ -15,16 +15,6 @@
 #include <cstring>
 #include <mqtt/client.h>
 
-// typedef struct stat_plugin_t stat_plugin_t;
-
-// struct stat_plugin_t
-// {
-//   std::vector<Source *> sources;
-//   std::vector<System *> systems;
-//   std::vector<Call *> calls;
-//   Config *config;
-// };
-
 using namespace std;
 
 const int QOS = 1;
@@ -97,6 +87,13 @@ public:
       System *system = *it;
       nodes.push_back(std::make_pair("", system->get_stats_current(timeDiff)));
     }
+    
+    /**
+     * system_rates() is triggered every ~3 sec. Periodic tasks can more efficiently be 
+     * checked here instead of each cycle in poll_one().
+    */ 
+    resend_configs();
+
     return send_object(nodes, "rates", "rates", this->topic);
   }
 
@@ -507,8 +504,13 @@ public:
 
   int poll_one() override
   {
+    return 0;
+  }
+
+  int resend_configs()
+  {
     time_t now_time = time(NULL);
-    
+      
     if (((now_time - this->config_resend_time ) > refresh ) && (this->config_resend_time > 0)){
       this->m_config_sent = false;
 
