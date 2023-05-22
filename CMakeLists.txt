@@ -131,8 +131,8 @@ message(STATUS "GnuRadio Version: " ${GNURADIO_VERSION})
 #find_package(LibUHD)
 find_package(OpenSSL REQUIRED)
 #find_package(CURL REQUIRED)
-find_library(paho-mqttpp3 NAMES libpaho-mqttpp3.a REQUIRED)
-find_library(paho-mqtt3a NAMES libpaho-mqtt3as.a REQUIRED)
+find_library(paho-mqttpp3 NAMES libpaho-mqttpp3.a libpaho-mqttpp3.so REQUIRED)
+find_library(paho-mqtt3a NAMES libpaho-mqtt3as.a libpaho-mqtt3as.so REQUIRED)
 find_library(trunk-recorder NAMES trunk-recorder/libtrunk-recorder.a REQUIRED)
 
 ########################################################################
