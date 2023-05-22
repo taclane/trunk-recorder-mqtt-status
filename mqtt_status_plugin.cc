@@ -86,9 +86,15 @@ public:
     for (std::vector<System *>::iterator it = systems.begin(); it != systems.end(); ++it)
     {
       System *system = *it;
-      system_node = system->get_stats_current(timeDiff);
-      system_node.put("shortName", system->get_short_name());
-      systems_node.push_back(std::make_pair("", system_node));
+      std::string sys_type = system->get_system_type();
+      // Filter out conventional.  They don't have a call rate and get_current_control_channel
+      // will cause a sefgault on non-trunked systems.
+      if (sys_type.find("conventional") == std::string::npos) {
+        system_node = system->get_stats_current(timeDiff);
+        system_node.put("shortName", system->get_short_name());
+        system_node.put("controlChannel", system->get_current_control_channel());
+        systems_node.push_back(std::make_pair("", system_node));
+      }
     }
     return send_object(systems_node, "rates", "rates", this->topic);
   }
@@ -161,6 +167,7 @@ public:
       else
       {
         channels = sys->get_control_channels();
+        sys_node.put("controlChannel", sys->get_current_control_channel());
       }
 
       for (std::vector<double>::iterator chan_it = channels.begin(); chan_it != channels.end(); ++chan_it)
