@@ -281,7 +281,7 @@ public:
 
   //************UNIT REPORTING********
   // Re-task call_start to also report unit ID information
-  int call_start(Call *call) {
+  int call_start(Call *call) override {
     long talkgroup_num = call->get_talkgroup();
     long source_id = call->get_current_source_id();
     std::string short_name = call->get_short_name();
@@ -360,7 +360,7 @@ public:
 
   }
 
-  int unit_registration(System *sys, long source_id) {
+  int unit_registration(System *sys, long source_id) override {
     //unit_affiliations[source_id] = 0;
     if ((this->unit_enabled)) {
       boost::property_tree::ptree node;
@@ -372,7 +372,7 @@ public:
     return 1;
   }
 
-  int unit_deregistration(System *sys, long source_id) { 
+  int unit_deregistration(System *sys, long source_id) override { 
     //unit_affiliations[source_id] = -1;
     if ((this->unit_enabled)) {
       boost::property_tree::ptree node;
@@ -384,7 +384,7 @@ public:
     return 1;
   }  
 
-  int unit_acknowledge_response(System *sys, long source_id) { 
+  int unit_acknowledge_response(System *sys, long source_id) override { 
     if ((this->unit_enabled)) {
       boost::property_tree::ptree node;
       node.put("system", sys->get_short_name());
@@ -395,7 +395,7 @@ public:
     return 1;
   }
 
-  int unit_group_affiliation(System *sys, long source_id, long talkgroup_num) {
+  int unit_group_affiliation(System *sys, long source_id, long talkgroup_num) override {
     //unit_affiliations[source_id] = talkgroup_num;
     if ((this->unit_enabled)) {
       boost::property_tree::ptree node;
@@ -421,7 +421,7 @@ public:
     return 1;
   }
 
-  int unit_data_grant(System *sys, long source_id) {
+  int unit_data_grant(System *sys, long source_id) override {
     if ((this->unit_enabled)) {
       boost::property_tree::ptree node;
       node.put("system", sys->get_short_name());
@@ -432,7 +432,7 @@ public:
     return 1;
   }
 
-  int unit_answer_request(System *sys, long source_id, long talkgroup) {
+  int unit_answer_request(System *sys, long source_id, long talkgroup) override {
     if ((this->unit_enabled)) {
       boost::property_tree::ptree node;
       node.put("system", sys->get_short_name());
@@ -448,7 +448,7 @@ public:
     return 1;
   }
 
-  int unit_location(System *sys, long source_id, long talkgroup_num) {
+  int unit_location(System *sys, long source_id, long talkgroup_num) override {
     //unit_affiliations[source_id] = talkgroup_num;
     if ((this->unit_enabled)) {
       boost::property_tree::ptree node;
