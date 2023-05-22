@@ -332,7 +332,7 @@ public:
     call_node.put("emergency",call_info.emergency);
     call_node.put("tdma_slot",call_info.tdma_slot);
     call_node.put("phase2_tdma",call_info.phase2_tdma);
-    //call_node.put("transmission_list",call_info.transmission_list = call->get_transmissions();
+    //call_node.put("transmission_list",call_info.transmission_list);
     call_node.put("short_name",call_info.short_name);
     //call_node.put("upload_script",call_info.upload_script = sys->get_upload_script();
     //call_node.put("audio_archive",call_info.audio_archive = sys->get_audio_archive();
@@ -349,6 +349,12 @@ public:
     call_node.put("talkgroup_description",call_info.talkgroup_description);
     call_node.put("talkgroup_group",call_info.talkgroup_group);
     call_node.put("audio_type",call_info.audio_type);
+    
+    // call_node.put("transmission_source_list",call_info.transmission_source_list);
+    // call_node.put("transmission_error_list",call_info.transmission_error_list);
+    call_node.put("start_time",call_info.start_time);
+    call_node.put("stop_time",call_info.stop_time);
+    call_node.put("length",call_info.length);
 
     return send_object(call_node, "call", "call_end", this->topic);
 
