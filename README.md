@@ -7,11 +7,6 @@ This is a plugin for Trunk Recorder that publish the current status over MQTT. E
 1. **Build and install the current version of Trunk Recorder** following these [instructions](https://github.com/robotastic/trunk-recorder/blob/master/docs/INSTALL-LINUX.md). Make sure you do a `sudo make install` at the end to install the Trunk Recorder binary and libaries systemwide. The plugin will be built against these libraries.
 
 2. **Install the Paho MQTT C & C++ Libraries**.
-```bash
-sudo apt install libpaho-mqtt-dev libpaho-mqttpp-dev
-```
-
-If your package manager does not have the Paho MQTT libraries, you can build and install them via source:
 
 - *Install Paho MQTT C*
 ```bash
@@ -32,6 +27,13 @@ cmake -Bbuild -H. -DPAHO_BUILD_STATIC=ON  -DPAHO_BUILD_DOCUMENTATION=TRUE -DPAHO
 sudo cmake --build build/ --target install
 sudo ldconfig
 ```
+
+- Alternatively, if your package manager provides recent Paho MQTT libraries:
+
+```bash
+sudo apt install libpaho-mqtt-dev libpaho-mqttpp-dev
+```
+
 
 3. Build and install the plugin:
 
