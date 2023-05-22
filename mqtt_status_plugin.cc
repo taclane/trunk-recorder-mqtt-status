@@ -25,11 +25,12 @@ class Mqtt_Status : public Plugin_Api, public virtual mqtt::callback, public vir
   bool m_open;
   
   bool unit_enabled = false;
+  //bool tr_calls_set = false;
 
   int refresh;
   std::vector<Source *> sources;
   std::vector<System *> systems;
-  std::vector<Call *> calls;
+  std::vector<Call *> tr_calls;
   Config *config;
   std::string client_id;
   std::string mqtt_broker;
@@ -37,6 +38,7 @@ class Mqtt_Status : public Plugin_Api, public virtual mqtt::callback, public vir
   std::string password;
   std::string topic;
   std::string unit_topic;
+  std::string instance_id;
   mqtt::async_client *client;
 
   time_t config_resend_time = time(NULL);
@@ -223,14 +225,20 @@ public:
   int calls_active(std::vector<Call *> calls) override
   {
     // Send the list of all active calls
+    // Set a pointer to the call list if needed later
+    //if (tr_calls_set == false) {
+    //this->tr_calls = calls;
+    //tr_calls_set = true;
+    //}
+    
     boost::property_tree::ptree node;
 
     for (std::vector<Call *>::iterator it = calls.begin(); it != calls.end(); ++it)
     {
       Call *call = *it;
-      // if (call->get_state() == RECORDING) {
-      node.push_back(std::make_pair("", call->get_stats()));
-      //}
+      if (call->get_current_length() > 0) {
+        node.push_back(std::make_pair("", call->get_stats()));
+      }
     }
 
     return send_object(node, "calls", "calls_active", this->topic);
@@ -519,19 +527,20 @@ public:
       
     if (((now_time - this->config_resend_time ) > refresh ) && (this->config_resend_time > 0))
     {
-      std::vector<Recorder *> recorders;
-      for (std::vector<Source *>::iterator it = this->sources.begin(); it != this->sources.end(); ++it)
-      {
-        Source *source = *it;
-        std::vector<Recorder *> sourceRecorders = source->get_recorders();
-        recorders.insert(recorders.end(), sourceRecorders.begin(), sourceRecorders.end());
-      }
-
       send_config(this->sources, this->systems);
       send_systems(this->systems);
-      send_recorders(recorders);
       this->config_resend_time = now_time;
-    } 
+    }
+
+    std::vector<Recorder *> recorders;
+    for (std::vector<Source *>::iterator it = this->sources.begin(); it != this->sources.end(); ++it)
+    {
+      Source *source = *it;
+      std::vector<Recorder *> sourceRecorders = source->get_recorders();
+      recorders.insert(recorders.end(), sourceRecorders.begin(), sourceRecorders.end());
+    }
+
+    send_recorders(recorders);
 
     return 0;
   }
@@ -605,7 +614,9 @@ public:
     root.add_child(name, data);
     root.put("type", type);
     root.put("timestamp", now_time);
-
+    if (this->instance_id != "") {
+       root.put("instanceID", this->instance_id);
+    }
     std::stringstream stats_str;
     boost::property_tree::write_json(stats_str, root);
 
@@ -633,7 +644,9 @@ public:
   {
     // Plugin initialization; called after parse_config.
 
-    frequency_format = config->frequency_format; 
+    frequency_format = config->frequency_format;
+    this->instance_id = config->instance_id;
+    
     this->sources = sources;
     this->systems = systems;
     this->config = config;
@@ -684,6 +697,10 @@ public:
     // Called at the same periodicity of system_rates, this can be use to accomplish 
     // occasional plugin tasks more efficiently than checking each cycle of poll_one().  
     resend_configs();
+    
+    //if (tr_calls_set==true) {
+      //calls_active(this->tr_calls);
+    //}
 
     return 0;
   }
