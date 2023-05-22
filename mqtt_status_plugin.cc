@@ -324,6 +324,7 @@ public:
         node.put("talkgroup", call_info.talkgroup);
         node.put("talkgroup_patches", patch_string);
         node.put("talkgroup_alpha", call_info.talkgroup_alpha_tag);
+        node.put("encrypted", call_info.encrypted);
         node.put("callNum",call_info.call_num);
         send_object(node, "end", "end", this->unit_topic+"/"+call_info.short_name.c_str());
       }
