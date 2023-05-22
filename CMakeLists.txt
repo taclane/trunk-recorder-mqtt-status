@@ -63,11 +63,12 @@ set(CMAKE_INSTALL_RPATH_USE_LINK_PATH TRUE)
 # Install directories
 ########################################################################
 include(FindPkgConfig)
-find_package(Gnuradio REQUIRED)
-include(GrVersion)
-
-set(GR_REQUIRED_COMPONENTS RUNTIME ANALOG BLOCKS DIGITAL FILTER FFT PMT)
-find_package(Gnuradio REQUIRED COMPONENTS runtime analog blocks digital filter fft)
+#find_package(Gnuradio REQUIRED)
+#include(GrVersion)
+#
+#set(GR_REQUIRED_COMPONENTS RUNTIME ANALOG BLOCKS DIGITAL FILTER FFT PMT)
+find_package(Gnuradio)
+# REQUIRED COMPONENTS runtime analog blocks digital filter fft)
 if(Gnuradio_VERSION VERSION_LESS "3.8")
     find_package(Volk)
 endif()
@@ -128,14 +129,14 @@ message(STATUS "GnuRadio Version: " ${GNURADIO_VERSION})
 ########################################################################
 # Find build dependencies
 ########################################################################
-find_package(GnuradioUHD)
-find_package(GnuradioOsmosdr)
-find_package(LibHackRF)
-find_package(LibUHD)
-find_package(OpenSSL REQUIRED)
-find_package(CURL REQUIRED)
-find_library(paho-mqttpp3 NAMES libpaho-mqttpp3.a libpaho-mqttpp3.so REQUIRED)
-find_library(paho-mqtt3a NAMES libpaho-mqtt3as.a libpaho-mqtt3as.so REQUIRED)
+#find_package(GnuradioUHD)
+#find_package(GnuradioOsmosdr)
+#find_package(LibHackRF)
+#find_package(LibUHD)
+#find_package(OpenSSL REQUIRED)
+#find_package(CURL REQUIRED)
+find_library(paho-mqttpp3 NAMES libpaho-mqttpp3.a REQUIRED)
+find_library(paho-mqtt3a NAMES libpaho-mqtt3as.a REQUIRED)
 
 ########################################################################
 # Setup boost
@@ -237,12 +238,14 @@ target_link_libraries(mqtt_status_plugin trunk-recorder ssl crypto ${paho-mqttpp
 if(NOT Gnuradio_VERSION VERSION_LESS "3.8")
 
     target_link_libraries(mqtt_status_plugin
-    gnuradio::gnuradio-analog
-    gnuradio::gnuradio-blocks
-    gnuradio::gnuradio-digital
-    gnuradio::gnuradio-filter
-    gnuradio::gnuradio-pmt
+
     ) 
+
+   # gnuradio::gnuradio-analog
+   # gnuradio::gnuradio-blocks
+   # gnuradio::gnuradio-digital
+   # gnuradio::gnuradio-filter
+   # gnuradio::gnuradio-pmt
 
 endif()
 
