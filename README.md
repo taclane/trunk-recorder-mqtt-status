@@ -59,6 +59,7 @@ See the included [config.json](./config.json) as an example of how to load this 
         "library": "libmqtt_status_plugin.so",
         "broker": "tcp://io.adafruit.com:1883",
         "topic": "robotastic/feeds",
+        "unit_topic": "robotastic/units",
         "username": "robotastic",
         "password": "" 
     }]
