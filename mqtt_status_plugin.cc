@@ -39,6 +39,8 @@ class Mqtt_Status : public Plugin_Api, public virtual mqtt::callback, public vir
   bool m_open;
   bool m_done;
   bool m_config_sent;
+  
+  bool unit_enabled;
 
   std::vector<Call *> calls;
   Config *config;
@@ -279,7 +281,7 @@ public:
     long talkgroup_num = call->get_talkgroup();
     long source_id = call->get_current_source_id();
     std::string short_name = call->get_short_name();
-    if ((this->unit_topic != "") && (source_id != 0)) {
+    if ((this->unit_enabled) && (source_id != 0)) {
       boost::property_tree::ptree node;
       std::vector<unsigned long> talkgroup_patches = call->get_system()->get_talkgroup_patch(talkgroup_num);
       std::string patch_string;
@@ -303,20 +305,22 @@ public:
   // Use the call_end to catch conventional p25 UID/TG information since there are no control channel messages
   int call_end(Call_Data_t call_info) override
   {
-    boost::property_tree::ptree node;
-    BOOST_FOREACH (auto& source, call_info.transmission_source_list) {
-      node.put("unit", source.source );
-      node.put("unit_alpha", source.tag);
-      node.put("talkgroup", call_info.talkgroup);
-      node.put("talkgroup_alpha", call_info.talkgroup_alpha_tag);
-      send_object(node, "end", "end", this->unit_topic+"/"+call_info.short_name.c_str());
+    if (this->unit_enabled) {
+      boost::property_tree::ptree node;
+      BOOST_FOREACH (auto& source, call_info.transmission_source_list) {
+        node.put("unit", source.source );
+        node.put("unit_alpha", source.tag);
+        node.put("talkgroup", call_info.talkgroup);
+        node.put("talkgroup_alpha", call_info.talkgroup_alpha_tag);
+        send_object(node, "end", "end", this->unit_topic+"/"+call_info.short_name.c_str());
+      }
     }
     return 0;
   }
 
   int unit_registration(System *sys, long source_id) {
     //unit_affiliations[source_id] = 0;
-    if ((this->unit_topic != "") && (source_id != 0)) {
+    if ((this->unit_enabled) && (source_id != 0)) {
       boost::property_tree::ptree node;
       node.put("unit", source_id );
       node.put("unit_alpha", sys->find_unit_tag(source_id));
@@ -327,7 +331,7 @@ public:
 
   int unit_deregistration(System *sys, long source_id) { 
     //unit_affiliations[source_id] = -1;
-    if ((this->unit_topic != "") && (source_id != 0)) {
+    if ((this->unit_enabled) && (source_id != 0)) {
       boost::property_tree::ptree node;
       node.put("unit", source_id );
       node.put("unit_alpha", sys->find_unit_tag(source_id));
@@ -337,7 +341,7 @@ public:
   }  
 
   int unit_acknowledge_response(System *sys, long source_id) { 
-    if ((this->unit_topic != "") && (source_id != 0)) {
+    if ((this->unit_enabled) && (source_id != 0)) {
       boost::property_tree::ptree node;
       node.put("unit", source_id );
       node.put("unit_alpha", sys->find_unit_tag(source_id));
@@ -348,7 +352,7 @@ public:
 
   int unit_group_affiliation(System *sys, long source_id, long talkgroup_num) {
     //unit_affiliations[source_id] = talkgroup_num;
-    if ((this->unit_topic != "") && (source_id != 0)) {
+    if ((this->unit_enabled) && (source_id != 0)) {
       boost::property_tree::ptree node;
       std::vector<unsigned long> talkgroup_patches = sys->get_talkgroup_patch(talkgroup_num);
       std::string patch_string;
@@ -372,7 +376,7 @@ public:
   }
 
   int unit_data_grant(System *sys, long source_id) {
-    if ((this->unit_topic != "") && (source_id != 0)) {
+    if ((this->unit_enabled) && (source_id != 0)) {
       boost::property_tree::ptree node;
       node.put("unit", source_id );
       node.put("unit_alpha", sys->find_unit_tag(source_id));
@@ -382,7 +386,7 @@ public:
   }
 
   int unit_answer_request(System *sys, long source_id, long talkgroup) {
-    if ((this->unit_topic != "") && (source_id != 0)) {
+    if ((this->unit_enabled) && (source_id != 0)) {
       boost::property_tree::ptree node;
       node.put("unit", source_id );
       node.put("unit_alpha", sys->find_unit_tag(source_id));
@@ -398,7 +402,7 @@ public:
 
   int unit_location(System *sys, long source_id, long talkgroup_num) {
     //unit_affiliations[source_id] = talkgroup_num;
-    if ((this->unit_topic != "") && (source_id != 0)) {
+    if ((this->unit_enabled) && (source_id != 0)) {
       boost::property_tree::ptree node;
       std::vector<unsigned long> talkgroup_patches = sys->get_talkgroup_patch(talkgroup_num);
       std::string patch_string;
@@ -560,6 +564,12 @@ public:
     BOOST_LOG_TRIVIAL(info) << " MQTT Status Plugin Topic: " << this->topic;
     this->unit_topic = cfg.get<std::string>("unit_topic", "");
     BOOST_LOG_TRIVIAL(info) << " MQTT Unit Plugin Topic: " << this->unit_topic;
+
+    if (this->unit_topic == "") {
+      this->unit_enabled = false;
+    } else {
+      this->unit_enabled = true;
+    }
 
     return 0;
   }
