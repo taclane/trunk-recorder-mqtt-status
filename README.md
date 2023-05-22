@@ -52,6 +52,7 @@ __Plugin options:__
 | broker     |    ✓     |   tcp://localhost:1883            | string | The URL for the MQTT Message Broker. It should include the protocol used: **tcp**, **ssl**, **ws**, **wss** and the port, which is generally 1883 for tcp, 8883 for ssl, and 443 for ws. |
 | topic      |    ✓     |               | string | This is the base topic to use. The plugin will create subtopics for the different types of status messages. |
 | unit_topic |          |               | string | Optional field to enable reporting of unit stats over MQTT. |
+| message_topic |          |               | string | Optional field to enable reporting of trunking messages over MQTT. |
 | username   |          |               | string | If a username is required for the broker, add it here. |
 | password   |          |               | string | If a password is required for the broker, add it here. |
 | refresh    |          |        60     | int    | Recorders and configs are normally only sent at startup, this sets the interval this information is refreshed. A value of -1 will disable. |
@@ -93,7 +94,7 @@ If the plugin cannot be found, or it is being run from a different location, it 
 | topic | recorders | list of system recorders, sent at `refresh` interval |
 | topic | recoders | recorder updates |
 | topic | call_start | new calls |
-|topic  | call_end | completed calls |
+| topic | call_end | completed calls |
 | unit_topic/shortname | call | channel grants |
 | unit_topic/shortname | end | call end unit information\* |
 | unit_topic/shortname | on | unit registration |
@@ -103,6 +104,7 @@ If the plugin cannot be found, or it is being run from a different location, it 
 | unit_topic/shortname | data | unit data grant |
 | unit_topic/shortname | ans_req | uit answer request |
 | unit_topic/shortname | location | unit location update |
+| message_topic/shortname | messages | trunking messages |
 
 \*`end` is not a trunking message, but sent after trunk-recorder ends the call.  This can be used to track conventional non-trunked calls.
 
