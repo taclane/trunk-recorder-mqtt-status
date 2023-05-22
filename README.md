@@ -48,6 +48,7 @@ sudo make install
 
 | Key       | Required | Default Value | Type   | Description                                                  |
 | --------- | :------: | ------------- | ------ | ------------------------------------------------------------ |
+| clientname|          | tr-status     | string | This is the optional client id to send to MQTT |
 | broker    |    ✓     |   tcp://localhost:1883            | string | The URL for the MQTT Message Broker. It should include the protocol used: **tcp**, **ssl**, **ws**, **wss** and the port, which is generally 1883 for tcp, 8883 for ssl, and 443 for ws. |
 | topic     |    ✓     |               | string | This is the base topic to use. The plugin will create subtopics for the different types of status messages. |
 | unit_topic|          |               | string | Optional field to enable reporting of unit stats over MQTT. |
@@ -63,6 +64,7 @@ See the included [config.json](./config.json) as an example of how to load this 
     "plugins": [
     {
         "name": "MQTT Status",
+        "clientname": "tr_status",
         "library": "libmqtt_status_plugin.so",
         "broker": "tcp://io.adafruit.com:1883",
         "topic": "robotastic/feeds",
