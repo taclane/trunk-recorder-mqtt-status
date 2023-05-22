@@ -268,6 +268,13 @@ public:
   //   return send_object(call->get_stats(), "call", "call_start", this->topic);
   // }
 
+  int send_recorder(Recorder *recorder)
+  {
+    return send_object(recorder->get_stats(), "recorder", "recorder", this->topic);
+  }
+
+//************UNIT REPORTING********
+  // Use the call_end to catch conventional p25 UID/TG information since there are no control channel
   int call_end(Call_Data_t call_info) override
   {
     boost::property_tree::ptree node;
@@ -281,146 +288,139 @@ public:
     return 0;
   }
 
-  int send_recorder(Recorder *recorder)
-  {
-    return send_object(recorder->get_stats(), "recorder", "recorder", this->topic);
-  }
-
-//************UNIT STUFF********
-
-int unit_registration(System *sys, long source_id) {
-  //unit_affiliations[source_id] = 0;
-  if ((this->unit_topic != "") && (source_id != 0)) {
-    boost::property_tree::ptree node;
-    node.put("unit", source_id );
-    node.put("unit_alpha", sys->find_unit_tag(source_id));
-    return send_object(node, "on", "on", this->unit_topic+"/"+sys->get_short_name().c_str());
-  }
-  return 1;
-}
-
-int unit_deregistration(System *sys, long source_id) { 
-  //unit_affiliations[source_id] = -1;
-  if ((this->unit_topic != "") && (source_id != 0)) {
-    boost::property_tree::ptree node;
-    node.put("unit", source_id );
-    node.put("unit_alpha", sys->find_unit_tag(source_id));
-    return send_object(node, "off", "off", this->unit_topic+"/"+sys->get_short_name().c_str());
-  }
-  return 1;
-}  
-
-int unit_acknowledge_response(System *sys, long source_id) { 
-  if ((this->unit_topic != "") && (source_id != 0)) {
-    boost::property_tree::ptree node;
-    node.put("unit", source_id );
-    node.put("unit_alpha", sys->find_unit_tag(source_id));
-    return send_object(node, "ackresp", "ackresp", this->unit_topic+"/"+sys->get_short_name().c_str());
-  }
-  return 1;
-}
-
-int unit_group_affiliation(System *sys, long source_id, long talkgroup_num) {
-  //unit_affiliations[source_id] = talkgroup_num;
-  if ((this->unit_topic != "") && (source_id != 0)) {
-    boost::property_tree::ptree node;
-    std::vector<unsigned long> talkgroup_patches = sys->get_talkgroup_patch(talkgroup_num);
-    std::string patch_string;
-    bool first = true;
-    BOOST_FOREACH (auto& TGID, talkgroup_patches) {
-      if (!first) { patch_string += ","; }
-      first = false;
-      patch_string += std::to_string(TGID);
+  int unit_registration(System *sys, long source_id) {
+    //unit_affiliations[source_id] = 0;
+    if ((this->unit_topic != "") && (source_id != 0)) {
+      boost::property_tree::ptree node;
+      node.put("unit", source_id );
+      node.put("unit_alpha", sys->find_unit_tag(source_id));
+      return send_object(node, "on", "on", this->unit_topic+"/"+sys->get_short_name().c_str());
     }
-    node.put("unit", source_id );
-    node.put("unit_alpha", sys->find_unit_tag(source_id));
-    node.put("talkgroup", talkgroup_num);
-    node.put("talkgroup_patches", patch_string);
-    Talkgroup *tg = sys->find_talkgroup(talkgroup_num);
-    if (tg != NULL) {
-      node.put("talkgroup_alpha", tg->alpha_tag);
-    }
-    return send_object(node, "join", "join", this->unit_topic+"/"+sys->get_short_name().c_str());  
+    return 1;
   }
-  return 1;
-}
 
-int unit_data_grant(System *sys, long source_id) {
-  if ((this->unit_topic != "") && (source_id != 0)) {
-    boost::property_tree::ptree node;
-    node.put("unit", source_id );
-    node.put("unit_alpha", sys->find_unit_tag(source_id));
-    return send_object(node, "data", "data", this->unit_topic+"/"+sys->get_short_name().c_str());
-  }
-  return 1;
-}
-
-int unit_answer_request(System *sys, long source_id, long talkgroup) {
-  if ((this->unit_topic != "") && (source_id != 0)) {
-    boost::property_tree::ptree node;
-    node.put("unit", source_id );
-    node.put("unit_alpha", sys->find_unit_tag(source_id));
-    node.put("talkgroup", talkgroup);
-    Talkgroup *tg = sys->find_talkgroup(talkgroup);
-    if (tg != NULL) {
-      node.put("talkgroup_alpha", tg->alpha_tag);
+  int unit_deregistration(System *sys, long source_id) { 
+    //unit_affiliations[source_id] = -1;
+    if ((this->unit_topic != "") && (source_id != 0)) {
+      boost::property_tree::ptree node;
+      node.put("unit", source_id );
+      node.put("unit_alpha", sys->find_unit_tag(source_id));
+      return send_object(node, "off", "off", this->unit_topic+"/"+sys->get_short_name().c_str());
     }
-    return send_object(node, "ans_req", "ans_req", this->unit_topic+"/"+sys->get_short_name().c_str());
-  }
-  return 1;
-}
+    return 1;
+  }  
 
-int unit_location(System *sys, long source_id, long talkgroup_num) {
-  //unit_affiliations[source_id] = talkgroup_num;
-  if ((this->unit_topic != "") && (source_id != 0)) {
-    boost::property_tree::ptree node;
-    std::vector<unsigned long> talkgroup_patches = sys->get_talkgroup_patch(talkgroup_num);
-    std::string patch_string;
-    bool first = true;
-    BOOST_FOREACH (auto& TGID, talkgroup_patches) {
-      if (!first) { patch_string += ","; }
-      first = false;
-      patch_string += std::to_string(TGID);
+  int unit_acknowledge_response(System *sys, long source_id) { 
+    if ((this->unit_topic != "") && (source_id != 0)) {
+      boost::property_tree::ptree node;
+      node.put("unit", source_id );
+      node.put("unit_alpha", sys->find_unit_tag(source_id));
+      return send_object(node, "ackresp", "ackresp", this->unit_topic+"/"+sys->get_short_name().c_str());
     }
-    node.put("unit", source_id );
-    node.put("unit_alpha", sys->find_unit_tag(source_id));
-    node.put("talkgroup", talkgroup_num);
-    node.put("talkgroup_patches", patch_string);
-    Talkgroup *tg = sys->find_talkgroup(talkgroup_num);
-    if (tg != NULL) {
-      node.put("talkgroup_alpha", tg->alpha_tag);
-    }
-    return send_object(node, "location", "location", this->unit_topic+"/"+sys->get_short_name().c_str());
+    return 1;
   }
-  return 1;
-}
 
-int call_start(Call *call) {
-  long talkgroup_num = call->get_talkgroup();
-  long source_id = call->get_current_source_id();
-  std::string short_name = call->get_short_name();
-  if ((this->unit_topic != "") && (source_id != 0)) {
-    boost::property_tree::ptree node;
-    std::vector<unsigned long> talkgroup_patches = call->get_system()->get_talkgroup_patch(talkgroup_num);
-    std::string patch_string;
-    bool first = true;
-    BOOST_FOREACH (auto& TGID, talkgroup_patches) {
-      if (!first) { patch_string += ","; }
-      first = false;
-      patch_string += std::to_string(TGID);
+  int unit_group_affiliation(System *sys, long source_id, long talkgroup_num) {
+    //unit_affiliations[source_id] = talkgroup_num;
+    if ((this->unit_topic != "") && (source_id != 0)) {
+      boost::property_tree::ptree node;
+      std::vector<unsigned long> talkgroup_patches = sys->get_talkgroup_patch(talkgroup_num);
+      std::string patch_string;
+      bool first = true;
+      BOOST_FOREACH (auto& TGID, talkgroup_patches) {
+        if (!first) { patch_string += ","; }
+        first = false;
+        patch_string += std::to_string(TGID);
+      }
+      node.put("unit", source_id );
+      node.put("unit_alpha", sys->find_unit_tag(source_id));
+      node.put("talkgroup", talkgroup_num);
+      node.put("talkgroup_patches", patch_string);
+      Talkgroup *tg = sys->find_talkgroup(talkgroup_num);
+      if (tg != NULL) {
+        node.put("talkgroup_alpha", tg->alpha_tag);
+      }
+      return send_object(node, "join", "join", this->unit_topic+"/"+sys->get_short_name().c_str());  
     }
-    node.put("unit", source_id );
-    node.put("unit_alpha", call->get_system()->find_unit_tag(source_id));
-    node.put("talkgroup", talkgroup_num);
-    node.put("talkgroup_patches", patch_string);
-    node.put("talkgroup_alpha", call->get_talkgroup_tag());
-    node.put("encrypted", call->get_encrypted());
-    send_object(node, "call", "call", this->unit_topic+"/"+short_name.c_str());
+    return 1;
   }
-  return send_object(call->get_stats(), "call", "call_start", this->topic);
-}
 
-//************
+  int unit_data_grant(System *sys, long source_id) {
+    if ((this->unit_topic != "") && (source_id != 0)) {
+      boost::property_tree::ptree node;
+      node.put("unit", source_id );
+      node.put("unit_alpha", sys->find_unit_tag(source_id));
+      return send_object(node, "data", "data", this->unit_topic+"/"+sys->get_short_name().c_str());
+    }
+    return 1;
+  }
+
+  int unit_answer_request(System *sys, long source_id, long talkgroup) {
+    if ((this->unit_topic != "") && (source_id != 0)) {
+      boost::property_tree::ptree node;
+      node.put("unit", source_id );
+      node.put("unit_alpha", sys->find_unit_tag(source_id));
+      node.put("talkgroup", talkgroup);
+      Talkgroup *tg = sys->find_talkgroup(talkgroup);
+      if (tg != NULL) {
+        node.put("talkgroup_alpha", tg->alpha_tag);
+      }
+      return send_object(node, "ans_req", "ans_req", this->unit_topic+"/"+sys->get_short_name().c_str());
+    }
+    return 1;
+  }
+
+  int unit_location(System *sys, long source_id, long talkgroup_num) {
+    //unit_affiliations[source_id] = talkgroup_num;
+    if ((this->unit_topic != "") && (source_id != 0)) {
+      boost::property_tree::ptree node;
+      std::vector<unsigned long> talkgroup_patches = sys->get_talkgroup_patch(talkgroup_num);
+      std::string patch_string;
+      bool first = true;
+      BOOST_FOREACH (auto& TGID, talkgroup_patches) {
+        if (!first) { patch_string += ","; }
+        first = false;
+        patch_string += std::to_string(TGID);
+      }
+      node.put("unit", source_id );
+      node.put("unit_alpha", sys->find_unit_tag(source_id));
+      node.put("talkgroup", talkgroup_num);
+      node.put("talkgroup_patches", patch_string);
+      Talkgroup *tg = sys->find_talkgroup(talkgroup_num);
+      if (tg != NULL) {
+        node.put("talkgroup_alpha", tg->alpha_tag);
+      }
+      return send_object(node, "location", "location", this->unit_topic+"/"+sys->get_short_name().c_str());
+    }
+    return 1;
+  }
+
+  int call_start(Call *call) {
+    long talkgroup_num = call->get_talkgroup();
+    long source_id = call->get_current_source_id();
+    std::string short_name = call->get_short_name();
+    if ((this->unit_topic != "") && (source_id != 0)) {
+      boost::property_tree::ptree node;
+      std::vector<unsigned long> talkgroup_patches = call->get_system()->get_talkgroup_patch(talkgroup_num);
+      std::string patch_string;
+      bool first = true;
+      BOOST_FOREACH (auto& TGID, talkgroup_patches) {
+        if (!first) { patch_string += ","; }
+        first = false;
+        patch_string += std::to_string(TGID);
+      }
+      node.put("unit", source_id );
+      node.put("unit_alpha", call->get_system()->find_unit_tag(source_id));
+      node.put("talkgroup", talkgroup_num);
+      node.put("talkgroup_patches", patch_string);
+      node.put("talkgroup_alpha", call->get_talkgroup_tag());
+      node.put("encrypted", call->get_encrypted());
+      send_object(node, "call", "call", this->unit_topic+"/"+short_name.c_str());
+    }
+    return send_object(call->get_stats(), "call", "call_start", this->topic);
+  }
+//************UNIT REPORTING END****
+
   int send_object(boost::property_tree::ptree data, std::string name, std::string type, std::string topicname)
   {
     if (m_open == false)
