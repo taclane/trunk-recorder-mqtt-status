@@ -439,7 +439,7 @@ public:
       Talkgroup *tg = sys->find_talkgroup(talkgroup_num);
       if (tg != NULL)
       {
-        node.put("talkgroup_alpha", tg->alpha_tag);
+        node.put("talkgroup_alpha_tag", tg->alpha_tag);
       }
       return send_object(node, "join", "join", this->unit_topic+"/"+sys->get_short_name().c_str());  
     }
@@ -473,7 +473,7 @@ public:
       Talkgroup *tg = sys->find_talkgroup(talkgroup);
       if (tg != NULL)
       {
-        node.put("talkgroup_alpha", tg->alpha_tag);
+        node.put("talkgroup_alpha_tag", tg->alpha_tag);
       }
       return send_object(node, "ans_req", "ans_req", this->unit_topic+"/"+sys->get_short_name().c_str());
     }
@@ -503,7 +503,7 @@ public:
       Talkgroup *tg = sys->find_talkgroup(talkgroup_num);
       if (tg != NULL)
       {
-        node.put("talkgroup_alpha", tg->alpha_tag);
+        node.put("talkgroup_alpha_tag", tg->alpha_tag);
       }
       return send_object(node, "location", "location", this->unit_topic+"/"+sys->get_short_name().c_str());
     }
