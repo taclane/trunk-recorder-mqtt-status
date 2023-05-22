@@ -402,20 +402,28 @@ public:
     // Send information about a completed call and report participataing units (end)
     // This enables the collection unit information in conventional systems without a control channel
 
+    // We need access to the system to grab unit alphas.
+    System *sys = get_system_by_shortname(call_info.short_name);
+
+    // Generate list of talkgroup patches
+    std::vector<unsigned long> talkgroup_patches = call_info.patched_talkgroups;
+    std::string patch_string;
+    bool first = true;
+    BOOST_FOREACH (auto& TGID, talkgroup_patches)
+    {
+      if (!first) { patch_string += ","; }
+      first = false;
+      patch_string += std::to_string(TGID);
+    }
+
     if (this->unit_enabled)
     {
       boost::property_tree::ptree node;
-      std::vector<unsigned long> talkgroup_patches = call_info.patched_talkgroups;
-      std::string patch_string;
-      bool first = true;
-      BOOST_FOREACH (auto& TGID, talkgroup_patches)
-      {
-        if (!first) { patch_string += ","; }
-        first = false;
-        patch_string += std::to_string(TGID);
-      }
 
-      BOOST_FOREACH (auto& source, call_info.transmission_source_list)
+      // Transmission (in transmission_list) doesn't store position, so duplicate the logic to calculate it.
+      double total_length = 0;
+
+      BOOST_FOREACH (auto& transmission, call_info.transmission_list)
       {
         node.put("callNum", call_info.call_num);
         node.put("system", call_info.short_name);
@@ -472,7 +480,7 @@ public:
     call_node.put("talkgroup_description",call_info.talkgroup_description);
     call_node.put("talkgroup_group",call_info.talkgroup_group);
     call_node.put("audio_type",call_info.audio_type);
-    
+
     // call_node.put("transmission_source_list",call_info.transmission_source_list);
     // call_node.put("transmission_error_list",call_info.transmission_error_list);
     call_node.put("start_time",call_info.start_time);
@@ -497,7 +505,7 @@ public:
   }
 
   int unit_deregistration(System *sys, long source_id) override
-  { 
+  {
     // Unit de-registration on a system (off)
     if ((this->unit_enabled))
     {
@@ -508,10 +516,10 @@ public:
       return send_object(node, "off", "off", this->unit_topic+"/"+sys->get_short_name().c_str());
     }
     return 1;
-  }  
+  }
 
   int unit_acknowledge_response(System *sys, long source_id) override
-  { 
+  {
     // Unit acknowledge response (ackresp))
     if ((this->unit_enabled))
     {
@@ -549,7 +557,7 @@ public:
       {
         node.put("talkgroup_alpha_tag", tg->alpha_tag);
       }
-      return send_object(node, "join", "join", this->unit_topic+"/"+sys->get_short_name().c_str());  
+      return send_object(node, "join", "join", this->unit_topic+"/"+sys->get_short_name().c_str());
     }
     return 1;
   }
@@ -588,10 +596,10 @@ public:
     return 1;
   }
 
-  int unit_location(System *sys, long source_id, long talkgroup_num) override 
+  int unit_location(System *sys, long source_id, long talkgroup_num) override
   {
     // Unit location/roaming update (location)
-    if ((this->unit_enabled)) 
+    if ((this->unit_enabled))
     {
       boost::property_tree::ptree node;
       std::vector<unsigned long> talkgroup_patches = sys->get_talkgroup_patch(talkgroup_num);
@@ -620,10 +628,10 @@ public:
 
   int resend_configs()
   {
-    // The full list of system configs, systems, and recorders was originally sent 
+    // The full list of system configs, systems, and recorders was originally sent
     // once on startup.  The "refresh" option controls the interval they are resent.
     time_t now_time = time(NULL);
-      
+
     if (((now_time - this->config_resend_time ) > refresh ) && (this->config_resend_time > 0))
     {
       send_config(this->sources, this->systems);
@@ -676,7 +684,7 @@ public:
     // Open the connection to the destination MQTT server.
     const char *LWT_PAYLOAD = "Last will and testament.";
     // set up access channels to only log interesting things
-    client = new mqtt::async_client(this->mqtt_broker, this->clientid, config->capture_dir + "/store");
+    client = new mqtt::async_client(this->mqtt_broker, this->client_id, config->capture_dir + "/store");
 
     mqtt::connect_options connOpts;
 
@@ -745,7 +753,7 @@ public:
       BOOST_LOG_TRIVIAL(error) << "MQTT Status Plugin - " <<exc.what() << endl;
     }
 
-    return 0; 
+    return 0;
   }
 
   int poll_one() override
@@ -810,8 +818,8 @@ public:
 
   int setup_config(std::vector<Source *> sources, std::vector<System *> systems) override
   {
-    // Called at the same periodicity of system_rates, this can be use to accomplish 
-    // occasional plugin tasks more efficiently than checking each cycle of poll_one().  
+    // Called at the same periodicity of system_rates, this can be use to accomplish
+    // occasional plugin tasks more efficiently than checking each cycle of poll_one().
     resend_configs();
     // resend_calls();
 
@@ -830,9 +838,9 @@ public:
     BOOST_LOG_TRIVIAL(info) << " MQTT Status Plugin Broker Username: " << this->username;
     this->topic = cfg.get<std::string>("topic", "");
     BOOST_LOG_TRIVIAL(info) << " MQTT Status Plugin Topic: " << this->topic;
-    
+
     this->unit_topic = cfg.get<std::string>("unit_topic", "");
-    if (this->unit_topic == "") 
+    if (this->unit_topic == "")
     {
       BOOST_LOG_TRIVIAL(info) << " MQTT Unit Status Plugin: Disabled";
       this->unit_enabled = false;
