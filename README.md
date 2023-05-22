@@ -76,8 +76,9 @@ See the included [config.json](./config.json) as an example of how to load this 
 | topic | recorders | list of system recorders, sent at `refresh` interval |
 | topic | recoders | recorder updates |
 | topic | call_start | new calls |
+|topic  | call_end | completed calls |
 | unit_topic/shortname | call | channel grants |
-| unit_topic/shortname | end | call end information * |
+| unit_topic/shortname | end | call end unit information * |
 | unit_topic/shortname | on | unit registration |
 | unit_topic/shortname | off | unit regregistration |
 | unit_topic/shortname | ackresp | unit acknowledge response |
