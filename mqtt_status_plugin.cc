@@ -43,7 +43,7 @@ class Mqtt_Status : public Plugin_Api, public virtual mqtt::callback, public vir
 
   time_t config_resend_time = time(NULL);
   time_t call_resend_time = time(NULL);
-  
+
   std::map<std::string, int> system_map;
 
 protected:
@@ -629,7 +629,7 @@ public:
     root.put("type", type);
     root.put("timestamp", now_time);
     if (instance_id != "") {
-       root.put("instanceID", instance_id);
+       root.put("instanceId", instance_id);
     }
     std::stringstream stats_str;
     boost::property_tree::write_json(stats_str, root);
