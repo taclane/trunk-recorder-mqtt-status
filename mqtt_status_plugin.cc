@@ -85,7 +85,15 @@ public:
     for (std::vector<System *>::iterator it = systems.begin(); it != systems.end(); ++it)
     {
       System *system = *it;
-      nodes.push_back(std::make_pair("", system->get_stats_current(timeDiff)));
+      boost::property_tree::ptree system_node;
+      system_node.put("id", system->get_sys_num());
+      system_node.put("short_name", system->get_short_name());
+      system_node.put("decode_rate", system->get_message_count() / timeDiff);
+      
+      // So we don't break anyone.
+      system_node.put("decoderate", system->get_message_count() / timeDiff);
+
+      nodes.push_back(std::make_pair("", system_node));
     }
     
     /**
