@@ -46,7 +46,7 @@ sudo make install
 | unit_topic|          |               | string | Optional field to enable reporting of unit stats over MQTT. |
 | username  |          |               | string | If a username is required for the broker, add it here. |
 | password  |          |               | string | If a password is required for the broker, add it here. |
-
+| refresh   |          |        60     | int    | Recorders and configs are normally only sent at startup, this sets the interval this information is refreshed. A value of -1 will disable. |
 
 
 ### Plugin Object Example
@@ -61,12 +61,32 @@ See the included [config.json](./config.json) as an example of how to load this 
         "topic": "robotastic/feeds",
         "unit_topic": "robotastic/units",
         "username": "robotastic",
-        "password": "" 
+        "password": "",
+        "refresh": 30
     }]
 ```
 
+### MQTT Messages
+| Topic | Message | Description |
+| ----- | ------- | ----------- |
+| topic | rates | control channel decode rates |
+| topic | config | trunk-recorder config information, sent at `refresh` interval  |
+| topic | systems | configured systems, sent at `refresh` interval |
+| topic | calls_active | list of active calls|
+| topic | recorders | list of system recorders, sent at `refresh` interval |
+| topic | recoders | recorder updates |
+| topic | call_start | new calls |
+| unit_topic/shortname | call | channel grants |
+| unit_topic/shortname | end | call end information * |
+| unit_topic/shortname | on | unit registration |
+| unit_topic/shortname | off | unit regregistration |
+| unit_topic/shortname | ackresp | unit acknowledge response |
+| unit_topic/shortname | join | unit group affiliation |
+| unit_topic/shortname | data | unit data grant |
+| unit_topic/shortname | ans_req | uit answer request |
+| unit_topic/shortname | location | unit location update |
 
-
+*`end` is not a trunking message, but sent after trunk-recorder ends the call.  This can be used to track conventional non-trunked calls.
 
 ### Mosquitto MQTT Broker
 The Mosquitto MQTT is an easy way to have a local MQTT broker. It can be installed from a lot of package managers. 
