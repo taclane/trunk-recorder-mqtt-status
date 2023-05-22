@@ -25,6 +25,7 @@ class Mqtt_Status : public Plugin_Api, public virtual mqtt::callback, public vir
   bool m_open;
 
   bool unit_enabled;
+  bool message_enabled;
   bool tr_calls_set;
 
   int refresh;
@@ -38,6 +39,7 @@ class Mqtt_Status : public Plugin_Api, public virtual mqtt::callback, public vir
   std::string password;
   std::string topic;
   std::string unit_topic;
+  std::string message_topic;
   std::string instance_id;
   mqtt::async_client *client;
 
@@ -45,6 +47,76 @@ class Mqtt_Status : public Plugin_Api, public virtual mqtt::callback, public vir
   time_t call_resend_time = time(NULL);
 
   std::map<std::string, int> system_map;
+
+  std::map<short, std::string> opcodes = {
+    {-1, "** Unidentified"},
+    {0xff, "** Unidentified"},
+    {0x00, "GRP_V_CH_GRANT"},
+    {0x02, "GRP_V_CH_GRANT_UPDT"},
+    {0x03, "GRP_V_CH_GRANT_UPDT_EXP"},
+    {0x04, "UU_V_CH_GRANT"},
+    {0x05, "UU_ANS_REQ"},
+    {0x06, "UU_V_CH_GRANT_UPDT"},
+    {0x08, "Telephone Interconnect Voice Channel Grant"},
+    {0x09, "Telephone Interconnect Voice Channel Grant Update"},
+    {0x0a, "Telephone Interconnect Answer Request"},
+    {0x14, "DATA_GRANT"},
+    {0x15, "SNDCP Data Page Request"},
+    {0x16, "SNDCP Data Channel Announcement -Explicit"},
+    {0x18, "Status Update"},
+    {0x1a, "Status Query"},
+    {0x1c, "Message Update"},
+    {0x1d, "Radio Unit Monitor Command"},
+    {0x1f, "Call Alert"},
+    {0x20, "Acknowledge Response"},
+    {0x21, "Extended Function Command"},
+    {0x24, "Extended Function Command"},
+    {0x27, "Deny Response"},
+    {0x28, "Unit Group Affiliation"},
+    {0x29, "Secondary Control Channel Broadcast - Explicit"},
+    {0x2a, "Group Affiliation Query"},
+    {0x2b, "Location Registration Response"},
+    {0x2c, "Unit Registration Response"},
+    {0x2d, "AUTHENTICATION COMMAND"},
+    {0x2e, "DE-REGISTRATION ACKNOWLEDGE"},
+    {0x2f, "Unit DeRegistration Ack"},
+    {0x30, "TDMA SYNCHRONIZATION BROADCAST / PATCH"},
+    {0x31, "AUTHENTICATION DEMAND"},
+    {0x32, "AUTHENTICATION RESPONSE"},
+    {0x33, "iden up tdma id"},
+    {0x34, "iden vhf/uhf id"},
+    {0x35, "Time and Date Announcement"},
+    {0x36, "ROAMING ADDRESS COMMAND"},
+    {0x37, "ROAMING ADDRESS UPDATE"},
+    {0x38, "SYSTEM SERVICE BROADCAST"},
+    {0x39, "secondary cc"},
+    {0x3a, "rfss status"},
+    {0x3b, "network status"},
+    {0x3c, "adjacent status"},
+    {0x3d, "iden_up"},
+    {0x3e, "P_PARM_BCST"},
+  };
+
+  std::map<short, std::string> messages_types = {
+    {0, "GRANT"},
+    {1, "STATUS"},
+    {2, "UPDATE"},
+    {3, "CONTROL_CHANNEL"},
+    {4, "REGISTRATION"},
+    {5, "DEREGISTRATION"},
+    {6, "AFFILIATION"},
+    {7, "SYSID"},
+    {8, "ACKNOWLEDGE"},
+    {9, "LOCATION"},
+    {10, "PATCH_ADD"},
+    {11, "PATCH_DELETE"},
+    {12, "DATA_GRANT"},
+    {13, "UU_ANS_REQ"},
+    {14, "UU_V_GRANT"},
+    {15, "UU_V_UPDATE"},
+    {16, "ADJ_STS_BCST"},
+    {99, "UNKNOWN"},
+  };
 
 protected:
   void on_failure(const mqtt::token &tok) override
@@ -75,6 +147,27 @@ public:
 
   Mqtt_Status() : m_open(false)
   {
+  }
+
+  // laying the groundwork for trunk_message!
+  int trunk_message(std::vector<TrunkMessage> messages, System *system) override {
+    if ((this->message_enabled)) {  
+      for (std::vector<TrunkMessage>::iterator it = messages.begin(); it != messages.end(); it++) {
+        TrunkMessage message = *it;
+        boost::property_tree::ptree message_node;
+
+        message_node.put("shortName", system->get_short_name());
+        message_node.put("sysNum", system->get_sys_num());
+        message_node.put("trMessage", message.message_type);
+        message_node.put("trMessageAlpha", messages_types[message.message_type]);
+        message_node.put("opcode", message.opcode);
+        message_node.put("opcodeAlpha", opcodes[message.opcode]);
+        
+        BOOST_LOG_TRIVIAL(debug) << system->get_short_name() << system->get_sys_num() << " msg: " << std::setw(2) << message.message_type << " " << std::left << std::setw(18) <<  messages_types[message.message_type]  << "opcode 0x" << std::setw(2) << std::right << std::setfill('0') << std::hex << message.opcode << "\t" << opcodes[message.opcode];
+        send_object(message_node, "message", system->get_short_name().c_str(), this->message_topic);
+      }
+    }
+  return 0;
   }
 
   int system_rates(std::vector<System *> systems, float timeDiff) override
@@ -752,7 +845,19 @@ public:
 
     this->refresh = cfg.get<int>("refresh", 60);
     BOOST_LOG_TRIVIAL(info) << " MQTT Recorder/Source Refresh Interval: " << this->refresh;
-    
+
+    this->message_topic = cfg.get<std::string>("message_topic", "");
+    if (this->message_topic == "")
+    {
+      BOOST_LOG_TRIVIAL(info) << " MQTT Trunk Message Plugin: Disabled";
+      this->message_enabled = false;
+    }
+    else
+    {
+      BOOST_LOG_TRIVIAL(info) << " MQTT Trunk Message Plugin Topic: " << this->unit_topic;
+      this->message_enabled = true;
+    }
+
     return 0;
   }
 
