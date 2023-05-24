@@ -22,7 +22,7 @@ const auto TIMEOUT = std::chrono::seconds(10);
 
 class Mqtt_Status : public Plugin_Api, public virtual mqtt::callback, public virtual mqtt::iaction_listener
 {
-  bool m_open;
+  bool m_open = false;
 
   bool unit_enabled;
   bool message_enabled;
@@ -145,9 +145,9 @@ public:
          << (tok ? tok->get_message_id() : -1) << endl;
   }
 
-  Mqtt_Status() : m_open(false)
-  {
-  }
+  // Mqtt_Status()
+  // {
+  // }
 
   // laying the groundwork for trunk_message!
   int trunk_message(std::vector<TrunkMessage> messages, System *system) override {
@@ -336,7 +336,7 @@ public:
     {
       Call *call = *it;
       if ( (call->get_current_length() > 0) || (!call->is_conventional()) ) {
-        node.push_back(std::make_pair("", call->get_stats()));
+        node.push_back(std::make_pair("", round_stats(call->get_stats())));
       }
     }
 
@@ -351,7 +351,7 @@ public:
     for (std::vector<Recorder *>::iterator it = recorders.begin(); it != recorders.end(); ++it)
     {
       Recorder *recorder = *it;
-      node.push_back(std::make_pair("", recorder->get_stats()));
+      node.push_back(std::make_pair("", round_stats(recorder->get_stats())));
     }
 
     return send_object(node, "recorders", "recorders", this->topic);
@@ -360,7 +360,7 @@ public:
   int send_recorder(Recorder *recorder)
   {
     // Send the status of a single recorder
-    return send_object(recorder->get_stats(), "recorder", "recorder", this->topic);
+    return send_object(round_stats(recorder->get_stats()), "recorder", "recorder", this->topic);
   }
 
   int call_start(Call *call) override
@@ -403,7 +403,7 @@ public:
     // This enables the collection unit information in conventional systems without a control channel
 
     // We need access to the system to grab unit alphas.
-    System *sys = get_system_by_shortname(call_info.short_name);
+    // System *sys = get_system_by_shortname(call_info.short_name);
 
     // Generate list of talkgroup patches
     std::vector<unsigned long> talkgroup_patches = call_info.patched_talkgroups;
@@ -419,16 +419,22 @@ public:
     if (this->unit_enabled)
     {
       boost::property_tree::ptree node;
+      std::vector<Call_Source> source_list = call_info.transmission_source_list;
 
+      // call_info.transmission_source_list is generated from call_info.transmission_list.  Though
+      // carrying different information, each vector should be equal in length and match per-transmission.
+      int transmision_num = 0;
+      
       // Transmission (in transmission_list) doesn't store position, so duplicate the logic to calculate it.
-      double total_length = 0;
+      //double total_length = 0;
 
       BOOST_FOREACH (auto& transmission, call_info.transmission_list)
       {
         node.put("callNum", call_info.call_num);
         node.put("system", call_info.short_name);
         node.put("unit", transmission.source);
-        node.put("unit_alpha", sys->find_unit_tag(transmission.source));
+        node.put("unit_alpha", source_list[transmision_num].tag);
+        // node.put("unit_alpha", sys->find_unit_tag(transmission.source));
         node.put("start_time", transmission.start_time);
         node.put("stop_time", transmission.stop_time);
         node.put("sample_count", transmission.sample_count);
@@ -439,16 +445,20 @@ public:
         node.put("transmission_filename", transmission.filename);
         node.put("transmission_base_filename", transmission.base_filename);
         node.put("call_filename", call_info.filename);
-        node.put("position", total_length);
+        //node.put("position", total_length);
+        node.put("position", source_list[transmision_num].position);
         node.put("talkgroup", call_info.talkgroup);
         node.put("talkgroup_alpha_tag",call_info.talkgroup_alpha_tag);
         node.put("talkgroup_description",call_info.talkgroup_description);
         node.put("talkgroup_group",call_info.talkgroup_group);
         node.put("talkgroup_patches", patch_string);
         node.put("encrypted", call_info.encrypted);
-        send_object(node, "end", "end", this->unit_topic+"/"+call_info.short_name.c_str());
-
-        total_length = total_length + transmission.length;
+        node.put("emergency", source_list[transmision_num].emergency);
+        node.put("signal_system", source_list[transmision_num].signal_system);
+        
+        send_object(round_stats(node), "end", "end", this->unit_topic+"/"+call_info.short_name.c_str());
+        //total_length = total_length + transmission.length;
+        transmision_num++;
       }
     }
     boost::property_tree::ptree call_node;
@@ -479,6 +489,7 @@ public:
     call_node.put("talkgroup_alpha_tag",call_info.talkgroup_alpha_tag);
     call_node.put("talkgroup_description",call_info.talkgroup_description);
     call_node.put("talkgroup_group",call_info.talkgroup_group);
+    call_node.put("talkgroup_patches", patch_string);
     call_node.put("audio_type",call_info.audio_type);
 
     // call_node.put("transmission_source_list",call_info.transmission_source_list);
@@ -487,7 +498,7 @@ public:
     call_node.put("stop_time",call_info.stop_time);
     call_node.put("length",call_info.length);
 
-    return send_object(call_node, "call", "call_end", this->topic);
+    return send_object(round_stats(call_node), "call", "call_end", this->topic);
   }
 
   int unit_registration(System *sys, long source_id) override
@@ -677,6 +688,26 @@ public:
 
     int sys_num = system_map[short_name];
     return this->systems[sys_num];
+  }
+
+  std::string round_to_str(double num)
+  {
+    // Round a float to two decimal places and return it as as string
+    char rounded[20];
+    snprintf(rounded, sizeof(rounded), "%.2f", num);
+    return std::string(rounded);
+  }
+
+  boost::property_tree::ptree round_stats(boost::property_tree::ptree stats)
+  {
+    // Parse a proprty tree for crazy floats and round them to two decimal places
+    std::vector<std::string> keys = { "position", "length", "duration" };
+    BOOST_FOREACH (const std::string& key, keys) {
+        if (stats.find(key) != stats.not_found()) {
+          stats.put(key, round_to_str(stats.get<double>(key)));
+        }
+    }
+  return stats;
   }
 
   void open_connection()
