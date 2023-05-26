@@ -687,6 +687,16 @@ public:
       this->message_enabled = true;
     else  
       this->message_topic = "[disabled]";
+    
+    // Remove any trailing slashes from topics
+    if (this->topic.back() == '/')
+      this->topic.erase(this->topic.size() - 1);
+
+    if (this->unit_topic.back() == '/')
+      this->unit_topic.erase(this->unit_topic.size() - 1);
+
+    if (this->message_topic.back() == '/')
+      this->message_topic.erase(this->message_topic.size() - 1);
 
     // Print plugin startup info
     BOOST_LOG_TRIVIAL(info) << " MQTT Status Plugin Broker: " << this->mqtt_broker;
@@ -920,14 +930,7 @@ public:
     // Ignore requests to send MQTT messages before the connection is opened
     if (m_open == false)
       return 0;
-
-    // Build the MQTT topic
-    if (object_topic.back() == '/')
-    {
-      object_topic.erase(object_topic.size() - 1);
-    }
-    object_topic = object_topic + "/" + type;
-    
+  
     // Build the MQTT payload, add addtional keys [timestamp, instance_id]
     boost::property_tree::ptree payload;
     payload.add_child(name, data);
@@ -941,7 +944,7 @@ public:
 
     // Assemble the MQTT message
     mqtt::message_ptr pubmsg = ::mqtt::message_ptr_builder()
-      .topic(object_topic)
+      .topic(object_topic + "/" + type)
       .payload(payload_json.str())
       .qos(QOS)
       .finalize();
