@@ -56,6 +56,7 @@ __Plugin options:__
 | username   |          |               | string | If a username is required for the broker, add it here. |
 | password   |          |               | string | If a password is required for the broker, add it here. |
 | refresh    |          |        60     | int    | Recorders and configs are normally only sent at startup, this sets the interval this information is refreshed. A value of -1 will disable. |
+| qos    |          |        0     | int    | Set the MQTT message [QOS level](https://www.eclipse.org/paho/files/mqttdoc/MQTTClient/html/qos.html) |
 
 __Trunk-Recorder options:__
 | Location | Key        | Required | Default Value | Type   | Description                                                  |
@@ -76,7 +77,8 @@ See the included [config.json](./config.json) as an example of how to load this 
         "unit_topic": "robotastic/units",
         "username": "robotastic",
         "password": "",
-        "refresh": 30
+        "refresh": 30,
+        "qos": 0
     }]
 ```
 If the plugin cannot be found, or it is being run from a different location, it may be necesarry to supply the full path:

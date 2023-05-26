@@ -17,9 +17,6 @@
 
 using namespace std;
 
-const int QOS = 1;
-const auto TIMEOUT = std::chrono::seconds(10);
-
 class Mqtt_Status : public Plugin_Api, public virtual mqtt::callback, public virtual mqtt::iaction_listener
 {
   bool m_open = false;
@@ -27,6 +24,7 @@ class Mqtt_Status : public Plugin_Api, public virtual mqtt::callback, public vir
   bool message_enabled = false;
   bool tr_calls_set = false;
 
+  int qos;
   int refresh;
   std::vector<Source *> sources;
   std::vector<System *> systems;
@@ -675,6 +673,7 @@ public:
     this->password = cfg.get<std::string>("password", "");
     this->topic = cfg.get<std::string>("topic", "");
     this->refresh = cfg.get<int>("refresh", 60);
+    this->qos = cfg.get<int>("qos", 0);
 
     this->unit_topic = cfg.get<std::string>("unit_topic", "");
     if (this->unit_topic != "")
@@ -708,6 +707,7 @@ public:
     BOOST_LOG_TRIVIAL(info) << " MQTT Unit Status Plugin Topic: " << this->unit_topic;
     BOOST_LOG_TRIVIAL(info) << " MQTT Trunk Message Plugin Topic: " << this->message_topic;
     BOOST_LOG_TRIVIAL(info) << " MQTT System/Config Refresh Interval: " << this->refresh;
+    BOOST_LOG_TRIVIAL(info) << " MQTT Status Plugin message QOS: " << this->qos;
 
     return 0;
   }
@@ -898,12 +898,12 @@ public:
     mqtt::message_ptr conn_msg = mqtt::message_ptr_builder()
       .topic(status_topic)
       .payload(connect_json.str())
-      .qos(QOS)
+      .qos(this->qos)
       .retained(true)
       .finalize();
 
     std::string lwt_string = lwt_json.str();
-    auto will_msg = mqtt::message(status_topic, lwt_string.c_str(), strlen(lwt_string.c_str()), QOS, true);
+    auto will_msg = mqtt::message(status_topic, lwt_string.c_str(), strlen(lwt_string.c_str()), this->qos, true);
 
     // Set SSL options
     mqtt::ssl_options sslopts =  mqtt::ssl_options_builder()
@@ -967,13 +967,13 @@ public:
     mqtt::message_ptr pubmsg = mqtt::message_ptr_builder()
       .topic(object_topic + "/" + type)
       .payload(payload_json.str())
-      .qos(QOS)
+      .qos(this->qos)
       .finalize();
     
     // Publish the MQTT message
     try
     {
-      client->publish(pubmsg); //->wait_for(TIMEOUT);
+      client->publish(pubmsg);
     }
     catch (const mqtt::exception &exc)
     {
