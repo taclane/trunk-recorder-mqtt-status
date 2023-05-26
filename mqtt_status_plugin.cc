@@ -869,29 +869,35 @@ public:
   void open_connection()
   {
     // Open the connection to the destination MQTT server using paho libraries.
-    // Set `m_open = true` when the connection is established.
+    
+    // Set a LWT message when the plugin shuts down or loses connection to the broker
+    std::string lwt_message = "Trunk-recorder offline: " + this->client_id + ":" + this->instance_id;
+    mqtt::message willmsg("trunk-recorder", lwt_message.c_str(), strlen(lwt_message.c_str()), QOS, true);
 
-    const char *LWT_PAYLOAD = "Last will and testament.";
-    // set up access channels to only log interesting things
-    client = new mqtt::async_client(this->mqtt_broker, this->client_id, config->capture_dir + "/store");
+    // Set SSL options
+    mqtt::ssl_options sslopts =  mqtt::ssl_options_builder()
+      .verify(false)
+      .enable_server_cert_auth(false)
+      .finalize();
 
-    mqtt::connect_options connOpts;
+    // Set connection options
+    mqtt::connect_options connOpts = mqtt::connect_options_builder()
+      .clean_session()
+      .ssl(sslopts)
+      .automatic_reconnect(std::chrono::seconds(10), std::chrono::seconds(40))
+      .will(willmsg)
+      .finalize();
 
+    // Set user/pass if indicated
     if ((this->username != "") && (this->password != ""))
     {
       BOOST_LOG_TRIVIAL(info) << " MQTT Status Plugin - \tSetting MQTT Broker username and password..." << endl;
-      connOpts = mqtt::connect_options_builder().clean_session().user_name(this->username).password(this->password).will(mqtt::message("final", LWT_PAYLOAD, QOS)).finalize();
-    }
-    else
-    {
-      connOpts = mqtt::connect_options_builder().clean_session().will(mqtt::message("final", LWT_PAYLOAD, QOS)).finalize();
+      connOpts.set_user_name(this->username);
+      connOpts.set_password(this->password);
     }
 
-    mqtt::ssl_options sslopts;
-    sslopts.set_verify(false);
-    sslopts.set_enable_server_cert_auth(false);
-    connOpts.set_ssl(sslopts);
-    connOpts.set_automatic_reconnect(10, 40); // this seems to be a blocking reconnect
+    // Open a connection to the broker, set m_open true if successful
+    client = new mqtt::async_client(this->mqtt_broker, this->client_id, config->capture_dir + "/store");
     try
     {
       BOOST_LOG_TRIVIAL(info) << " MQTT Status Plugin - \tConnecting...";
@@ -909,35 +915,40 @@ public:
 
   int send_object(boost::property_tree::ptree data, std::string name, std::string type, std::string object_topic)
   {
-    // Send a MQTT message using the configured connection and paho libraries
+    // Send a MQTT message using the configured connection and paho libraries.
 
+    // Ignore requests to send MQTT messages before the connection is opened
     if (m_open == false)
       return 0;
 
-    time_t now_time = time(NULL);
-
-    boost::property_tree::ptree root;
-
+    // Build the MQTT topic
     if (object_topic.back() == '/')
     {
       object_topic.erase(object_topic.size() - 1);
     }
     object_topic = object_topic + "/" + type;
     
-    // Build the MQTT payload, add addtional keys [timestamp, instanceId]
-    root.add_child(name, data);
-    root.put("type", type);
-    root.put("timestamp", now_time);
+    // Build the MQTT payload, add addtional keys [timestamp, instance_id]
+    boost::property_tree::ptree payload;
+    payload.add_child(name, data);
+    payload.put("type", type);
+    payload.put("timestamp", time(NULL));
     if (instance_id != "") {
-       root.put("instanceId", instance_id);
+       payload.put("instance_id", instance_id);
     }
-    std::stringstream stats_str;
-    boost::property_tree::write_json(stats_str, root);
+    std::stringstream payload_json;
+    boost::property_tree::write_json(payload_json, payload);
 
+    // Assemble the MQTT message
+    mqtt::message_ptr pubmsg = ::mqtt::message_ptr_builder()
+      .topic(object_topic)
+      .payload(payload_json.str())
+      .qos(QOS)
+      .finalize();
+    
+    // Publish the MQTT message
     try
     {
-      mqtt::message_ptr pubmsg = mqtt::make_message(object_topic, stats_str.str());
-      pubmsg->set_qos(QOS);
       client->publish(pubmsg); //->wait_for(TIMEOUT);
     }
     catch (const mqtt::exception &exc)

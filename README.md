@@ -60,7 +60,7 @@ __Plugin options:__
 __Trunk-Recorder options:__
 | Location | Key        | Required | Default Value | Type   | Description                                                  |
 |------------|------------| :------: | ------------- | ------ | ------------------------------------------------------------ |
-| [top-level](./config.json) | instance_id |          |      | string | If multiple `trunk-recorder`s are reporting to a central location, an `instanceId` can be appended to each MQTT message to identify data origin. |
+| [top-level](./config.json) | instance_id |          |      | string | If multiple `trunk-recorder`s are reporting to a central location, an `instance_id` can be appended to each MQTT message to identify data origin. |
 
 ### Plugin Usage Example
 See the included [config.json](./config.json) as an example of how to load this plugin.
@@ -105,6 +105,7 @@ If the plugin cannot be found, or it is being run from a different location, it 
 | unit_topic/shortname | ans_req | uit answer request |
 | unit_topic/shortname | location | unit location update |
 | message_topic/shortname | messages | trunking messages |
+| trunk-recorder | | LWT message sent when offline or connection is lost to broker |
 
 \*`end` is not a trunking message, but sent after trunk-recorder ends the call.  This can be used to track conventional non-trunked calls.
 
