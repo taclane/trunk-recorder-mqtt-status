@@ -718,6 +718,8 @@ public:
 
     frequency_format = config->frequency_format;
     this->instance_id = config->instance_id;
+    if (this->instance_id == "")
+       this->instance_id = "trunk-recorder";
     
     // Establish pointers to systems, sources, and configs if needed later.
     this->sources = sources;
@@ -880,9 +882,28 @@ public:
   {
     // Open the connection to the destination MQTT server using paho libraries.
     
-    // Set a LWT message when the plugin shuts down or loses connection to the broker
-    std::string lwt_message = "Trunk-recorder offline: " + this->client_id + ":" + this->instance_id;
-    mqtt::message willmsg("trunk-recorder", lwt_message.c_str(), strlen(lwt_message.c_str()), QOS, true);
+    // Set a connect/disconnect message between client and broker
+    std::stringstream connect_json;
+    std::stringstream lwt_json;
+    std::string status_topic = this->topic + "/trunk_recorder/" + this->client_id;
+    
+    boost::property_tree::ptree status;
+    status.put("status", "connected");
+    status.put("instance_id", this->instance_id);
+    status.put("client_id", this->client_id);
+    boost::property_tree::write_json(connect_json, status);
+    status.put("status", "disconnected");
+    boost::property_tree::write_json(lwt_json, status);
+
+    mqtt::message_ptr conn_msg = mqtt::message_ptr_builder()
+      .topic(status_topic)
+      .payload(connect_json.str())
+      .qos(QOS)
+      .retained(true)
+      .finalize();
+
+    std::string lwt_string = lwt_json.str();
+    auto will_msg = mqtt::message(status_topic, lwt_string.c_str(), strlen(lwt_string.c_str()), QOS, true);
 
     // Set SSL options
     mqtt::ssl_options sslopts =  mqtt::ssl_options_builder()
@@ -895,7 +916,7 @@ public:
       .clean_session()
       .ssl(sslopts)
       .automatic_reconnect(std::chrono::seconds(10), std::chrono::seconds(40))
-      .will(willmsg)
+      .will(will_msg)
       .finalize();
 
     // Set user/pass if indicated
@@ -906,7 +927,7 @@ public:
       connOpts.set_password(this->password);
     }
 
-    // Open a connection to the broker, set m_open true if successful
+    // Open a connection to the broker, set m_open true if successful, publish a connect message
     client = new mqtt::async_client(this->mqtt_broker, this->client_id, config->capture_dir + "/store");
     try
     {
@@ -916,6 +937,7 @@ public:
       conntok->wait();
       BOOST_LOG_TRIVIAL(info) << " MQTT Status Plugin - \t ...OK";
       m_open = true;
+      client->publish(conn_msg);
     }
     catch (const mqtt::exception &exc)
     {
@@ -936,14 +958,13 @@ public:
     payload.add_child(name, data);
     payload.put("type", type);
     payload.put("timestamp", time(NULL));
-    if (instance_id != "") {
-       payload.put("instance_id", instance_id);
-    }
+    payload.put("instance_id", instance_id);
+
     std::stringstream payload_json;
     boost::property_tree::write_json(payload_json, payload);
 
     // Assemble the MQTT message
-    mqtt::message_ptr pubmsg = ::mqtt::message_ptr_builder()
+    mqtt::message_ptr pubmsg = mqtt::message_ptr_builder()
       .topic(object_topic + "/" + type)
       .payload(payload_json.str())
       .qos(QOS)

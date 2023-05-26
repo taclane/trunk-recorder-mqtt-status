@@ -60,7 +60,7 @@ __Plugin options:__
 __Trunk-Recorder options:__
 | Location | Key        | Required | Default Value | Type   | Description                                                  |
 |------------|------------| :------: | ------------- | ------ | ------------------------------------------------------------ |
-| [top-level](./config.json) | instance_id |          |      | string | If multiple `trunk-recorder`s are reporting to a central location, an `instance_id` can be appended to each MQTT message to identify data origin. |
+| [top-level](./config.json) | instance_id |          |   trunk-recorder   | string | If multiple `trunk-recorder`s are reporting to a central location, an `instance_id` can be appended to each MQTT message to identify data origin. |
 
 ### Plugin Usage Example
 See the included [config.json](./config.json) as an example of how to load this plugin.
@@ -87,25 +87,25 @@ If the plugin cannot be found, or it is being run from a different location, it 
 ### MQTT Messages
 | Topic | Sub-Topic | Description |
 | ----- | ------- | ----------- |
-| topic | rates | control channel decode rates |
-| topic | config | trunk-recorder config information, sent at `refresh` interval  |
-| topic | systems | configured systems, sent at `refresh` interval |
-| topic | calls_active | list of active calls|
-| topic | recorders | list of system recorders, sent at `refresh` interval |
-| topic | recoders | recorder updates |
-| topic | call_start | new calls |
-| topic | call_end | completed calls |
-| unit_topic/shortname | call | channel grants |
-| unit_topic/shortname | end | call end unit information\* |
-| unit_topic/shortname | on | unit registration |
-| unit_topic/shortname | off | unit degregistration |
-| unit_topic/shortname | ackresp | unit acknowledge response |
-| unit_topic/shortname | join | unit group affiliation |
-| unit_topic/shortname | data | unit data grant |
-| unit_topic/shortname | ans_req | uit answer request |
-| unit_topic/shortname | location | unit location update |
-| message_topic/shortname | messages | trunking messages |
-| trunk-recorder | | LWT message sent when offline or connection is lost to broker |
+| topic | rates | Control channel decode rates |
+| topic | config | Trunk-recorder config information, sent at `refresh` interval  |
+| topic | systems | Configured systems, sent at `refresh` interval |
+| topic | calls_active | List of active calls, updated every 1 second|
+| topic | recorders | List of system recorders, updated every 3 seconds |
+| topic | recoders | Recorder status changes |
+| topic | call_start | New calls |
+| topic | call_end | Completed calls |
+| topic/trunk_recorder | `client_id` | Plugin status message, sent on startup or when the broker loses connection |
+| unit_topic/shortname | call | Channel grants |
+| unit_topic/shortname | end | Call end unit information\* |
+| unit_topic/shortname | on | Unit registration (radio on) |
+| unit_topic/shortname | off | Unit degregistration (radio off) |
+| unit_topic/shortname | ackresp | Unit acknowledge response |
+| unit_topic/shortname | join | Unit group affiliation |
+| unit_topic/shortname | data | Unit data grant |
+| unit_topic/shortname | ans_req | Unit answer request |
+| unit_topic/shortname | location | Unit location update |
+| message_topic/shortname | messages | Trunking messages |
 
 \*`end` is not a trunking message, but sent after trunk-recorder ends the call.  This can be used to track conventional non-trunked calls.
 
