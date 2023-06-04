@@ -436,7 +436,7 @@ public:
         end_node.put("freq", call_info.freq);
         end_node.put("length", transmission.length);
         end_node.put("transmission_filename", transmission.filename);
-        end_node.put("transmission_base_filename", transmission.base_filename);
+        //end_node.put("transmission_base_filename", transmission.base_filename);
         end_node.put("call_filename", call_info.filename);
         end_node.put("position", source_list[transmision_num].position);
         end_node.put("talkgroup", call_info.talkgroup);
