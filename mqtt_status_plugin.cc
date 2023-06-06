@@ -370,15 +370,8 @@ public:
     if ((this->unit_enabled))
     {
       boost::property_tree::ptree call_node;
-      std::vector<unsigned long> talkgroup_patches = call->get_system()->get_talkgroup_patch(talkgroup_num);
-      std::string patch_string;
-      bool first = true;
-      BOOST_FOREACH (auto& TGID, talkgroup_patches)
-      {
-        if (!first) { patch_string += ","; }
-        first = false;
-        patch_string += std::to_string(TGID);
-      }
+      std::string patch_string = patches_to_string(call->get_system()->get_talkgroup_patch(talkgroup_num));
+
       call_node.put("callNum", call->get_call_num());
       call_node.put("system", short_name );
       call_node.put("unit", source_id );
@@ -386,7 +379,6 @@ public:
       call_node.put("start_time", call->get_start_time());
       call_node.put("freq", call->get_freq());
       call_node.put("talkgroup", talkgroup_num);
-      call_node.put("talkgroup_patches", patch_string);
       call_node.put("talkgroup_alpha_tag", call->get_talkgroup_tag());
       call_node.put("talkgroup_patches", patch_string);
       call_node.put("encrypted", call->get_encrypted());
@@ -405,15 +397,7 @@ public:
     // This enables the collection unit information in conventional systems without a control channel.
 
     // Generate list of talkgroup patches
-    std::vector<unsigned long> talkgroup_patches = call_info.patched_talkgroups;
-    std::string patch_string;
-    bool first = true;
-    BOOST_FOREACH (auto& TGID, talkgroup_patches)
-    {
-      if (!first) { patch_string += ","; }
-      first = false;
-      patch_string += std::to_string(TGID);
-    }
+    std::string patch_string = patches_to_string(call_info.patched_talkgroups);
 
     if (this->unit_enabled)
     {
@@ -556,16 +540,9 @@ public:
     if ((this->unit_enabled))
     {
       boost::property_tree::ptree unit_node;
-      std::vector<unsigned long> talkgroup_patches = sys->get_talkgroup_patch(talkgroup_num);
-      std::string patch_string;
-      bool first = true;
+      std::string patch_string = patches_to_string(sys->get_talkgroup_patch(talkgroup_num));
 
-      BOOST_FOREACH (auto& TGID, talkgroup_patches)
-      {
-        if (!first) { patch_string += ","; }
-        first = false;
-        patch_string += std::to_string(TGID);
-      }
+      unit_node.put("sysNum", sys->get_sys_num());
       unit_node.put("system", sys->get_short_name());
       unit_node.put("unit", source_id );
       unit_node.put("unit_alpha", sys->find_unit_tag(source_id));
@@ -632,16 +609,9 @@ public:
     if ((this->unit_enabled))
     {
       boost::property_tree::ptree unit_node;
-      std::vector<unsigned long> talkgroup_patches = sys->get_talkgroup_patch(talkgroup_num);
-      std::string patch_string;
-      bool first = true;
+      std::string patch_string = patches_to_string(sys->get_talkgroup_patch(talkgroup_num));
 
-      BOOST_FOREACH (auto& TGID, talkgroup_patches)
-      {
-        if (!first) { patch_string += ","; }
-        first = false;
-        patch_string += std::to_string(TGID);
-      }
+      unit_node.put("sysNum", sys->get_sys_num());
       unit_node.put("system", sys->get_short_name());
       unit_node.put("unit", source_id );
       unit_node.put("unit_alpha", sys->find_unit_tag(source_id));
@@ -857,6 +827,22 @@ public:
     char rounded[20];
     snprintf(rounded, sizeof(rounded), "%.2f", num);
     return std::string(rounded);
+  }
+
+  std::string patches_to_string(std::vector<unsigned long> talkgroup_patches)
+  {
+    // Combine a vector of talkgroup patches into a string.
+
+    std::string patch_string;
+    bool first = true;
+
+    BOOST_FOREACH (auto& TGID, talkgroup_patches)
+    {
+      if (!first) { patch_string += ","; }
+      first = false;
+      patch_string += std::to_string(TGID);
+    }
+    return patch_string;
   }
 
   boost::property_tree::ptree round_stats(boost::property_tree::ptree stats)
