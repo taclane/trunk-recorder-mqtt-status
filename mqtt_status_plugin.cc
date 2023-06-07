@@ -881,16 +881,6 @@ public:
     this->systems = systems;
     this->config = config;
 
-    // Build a system_map for get_system_by_shortname() if needed later.
-    int sys_number = 0;
-    for (std::vector<System *>::iterator it = systems.begin(); it != systems.end(); ++it)
-    {
-      System *sys = (System *)*it;
-      std::string short_name = sys->get_short_name();
-      this->system_map[short_name] = sys_number;
-      sys_number += 1;
-    }
-
     return 0;
   }
 
@@ -966,18 +956,6 @@ public:
     }
     
     return 0;
-  }
-
-  System *get_system_by_shortname(std::string short_name)
-  {
-    // Workaround to find a system by its shortname to aid in metadata lookups.
-
-    // Example:
-    //   System *sys = get_system_by_shortname(call_info.short_name);
-    //   BOOST_LOG_TRIVIAL(error) << sys->get_short_name();
-
-    int sys_num = system_map[short_name];
-    return this->systems[sys_num];
   }
 
   std::string int_to_hex(int num, int places)
