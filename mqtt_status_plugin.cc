@@ -124,8 +124,11 @@ public:
 
   int trunk_message(std::vector<TrunkMessage> messages, System *system) override 
   {
+    // TRUNK-RECORDER PLUGIN API
+    //   Sent on each trunking message
+
     // MQTT: message_topic/short_name
-    // Lay the groundwork for trunk_message!
+    //   Lay the groundwork for trunk_message!
     
     if ((this->message_enabled)) {  
       for (std::vector<TrunkMessage>::iterator it = messages.begin(); it != messages.end(); it++) {
@@ -147,8 +150,11 @@ public:
 
   int system_rates(std::vector<System *> systems, float timeDiff) override
   {
+    // TRUNK-RECORDER PLUGIN API
+    //   Called every three seconds
+
     // MQTT: topic/rates
-    // Send control channel messages per second updates
+    //   Send control channel messages per second updates; rounded to two decimal places
 
     boost::property_tree::ptree system_node;
     boost::property_tree::ptree systems_node;
@@ -162,6 +168,7 @@ public:
       // get_current_control_channel() will cause a sefgault on non-trunked systems.
       if (sys_type.find("conventional") == std::string::npos) {
         system_node = system->get_stats_current(timeDiff);
+        system_node.put("decoderate", round_to_str(system_node.get<double>("decoderate")));
         system_node.put("short_name", system->get_short_name());
         system_node.put("control_channel", system->get_current_control_channel());
         systems_node.push_back(std::make_pair("", system_node));
@@ -174,8 +181,8 @@ public:
   void send_config(std::vector<Source *> sources, std::vector<System *> systems)
   {
     // MQTT: topic/config
-    // Send elements of the trunk recorder config.json.  
-    // retained = true ; Message will be kept at the MQTT broker to avoid the need to resend.
+    //   Send elements of the trunk recorder config.json.  
+    //   retained = true ; Message will be kept at the MQTT broker to avoid the need to resend.
 
     if (m_open == false)
       return;
@@ -286,11 +293,15 @@ public:
     send_object(root, "config", "config", this->topic, true);
   }
 
-  int send_systems(std::vector<System *> systems)
+  int setup_systems(std::vector<System *> systems) override
   {
+    // TRUNK-RECORDER PLUGIN API
+    //   Called during startup when the systems have been created.
+    //   May not have NAC or other details until all systems finish setting up.
+  
     // MQTT: topic/systems
-    // Send the configuration information for all systems
-    // retained = true ; Message will be kept at the MQTT broker to avoid the need to resend.
+    //   Send the configuration information for all systems
+    //   retained = true ; Message will be kept at the MQTT broker to avoid the need to resend.
 
     boost::property_tree::ptree system_node;
 
@@ -302,18 +313,27 @@ public:
     return send_object(system_node, "systems", "systems", this->topic, true);
   }
 
-  int send_system(System *system)
+  int setup_system(System *system) override
   {
-    // MQTT: topic/system
-    // Send the configuration information for a single system
+    // TRUNK-RECORDER PLUGIN API
+    //   Called after a system has been created.
 
+    // MQTT: topic/system
+    //   Send the configuration information for a single system.
+
+    // Resend the full system list with each update 
+    setup_systems(this->systems);
     return send_object(system->get_stats(), "system", "system", this->topic, false);
   }
 
   int calls_active(std::vector<Call *> calls) override
   {
+    // TRUNK-RECORDER PLUGIN API
+    //   Called when a call starts or ends
+
     // MQTT: topic/calls_active
-    // Send the list of all active calls
+    //   Send the list of all active calls; use a pointer to allow
+    //   updates between the normal API calls
     
     // Reset a pointer to the active call list if needed later
     this->tr_calls = calls;
@@ -335,7 +355,7 @@ public:
   int send_recorders(std::vector<Recorder *> recorders)
   {
     // MQTT: topic/recorders
-    // Send the status of all recorders
+    //   Send the status of all recorders
 
     boost::property_tree::ptree rec_node;
 
@@ -349,20 +369,26 @@ public:
     return send_object(rec_node, "recorders", "recorders", this->topic, false);
   }
 
-  int send_recorder(Recorder *recorder)
+  int setup_recorder(Recorder *recorder) override
   {
-    // MQTT: topic/recorders
-    // Send the status of a single recorder
+    // TRUNK-RECORDER PLUGIN API
+    //   Called when a recorder has been created or changes status
 
-    // Some stats are rounded to prevent long/repeating floats
+    // MQTT: topic/recorder
+    //   Send updates on individual recorders
+
     return send_object(round_stats(recorder->get_stats()), "recorder", "recorder", this->topic, false);
   }
 
   int call_start(Call *call) override
   {
+    // TRUNK-RECORDER PLUGIN API
+    //   Called when a call starts
+
     // MQTT: topic/call_start
+    //   Send information about a new call.
     // MQTT: unit_topic/shortname/call
-    // Send information about a new call and report information on the unit initiating it.
+    //   Send information on the unit initiating a new call.
 
     long talkgroup_num = call->get_talkgroup();
     long source_id = call->get_current_source_id();
@@ -371,7 +397,7 @@ public:
     if ((this->unit_enabled))
     {
       boost::property_tree::ptree call_node;
-      std::string patch_string = patches_to_string(call->get_system()->get_talkgroup_patch(talkgroup_num));
+      std::string patch_string = patches_to_str(call->get_system()->get_talkgroup_patch(talkgroup_num));
 
       call_node.put("callNum", call->get_call_num());
       call_node.put("system", short_name );
@@ -392,13 +418,18 @@ public:
 
   int call_end(Call_Data_t call_info) override
   {
+    // TRUNK-RECORDER PLUGIN API
+    //   Called after a call ends
+
     // MQTT: topic/call_end
+    //   Send information about a completed call.
     // MQTT: unit_topic/shortname/end
-    // Send information about a completed call and report participataing units.
-    // This enables the collection unit information in conventional systems without a control channel.
+    //   Send information on participataing units.
+    //   This enables the collection unit information in conventional systems 
+    //   without a control channel.
 
     // Generate list of talkgroup patches
-    std::string patch_string = patches_to_string(call_info.patched_talkgroups);
+    std::string patch_string = patches_to_str(call_info.patched_talkgroups);
 
     if (this->unit_enabled)
     {
@@ -481,8 +512,11 @@ public:
 
   int unit_registration(System *sys, long source_id) override
   {
+    // TRUNK-RECORDER PLUGIN API
+    //   Called each REGISTRATION message
+
     // MQTT: unit_topic/shortname/on
-    // Unit registration on a system (on)
+    //   Unit registration on a system (on)
 
     if ((this->unit_enabled))
     {
@@ -499,8 +533,11 @@ public:
 
   int unit_deregistration(System *sys, long source_id) override
   {
+    // TRUNK-RECORDER PLUGIN API
+    //   Called each DEREGISTRATION message
+
     // MQTT: unit_topic/shortname/off
-    // Unit de-registration on a system (off)
+    //   Unit de-registration on a system (off)
 
     if ((this->unit_enabled))
     {
@@ -517,8 +554,11 @@ public:
 
   int unit_acknowledge_response(System *sys, long source_id) override
   {
+    // TRUNK-RECORDER PLUGIN API
+    //   Called each ACKNOWLEDGE message
+
     // MQTT: unit_topic/shortname/ackresp
-    // Unit acknowledge response (ackresp)
+    //   Unit acknowledge response (ackresp)
 
     if ((this->unit_enabled))
     {
@@ -535,13 +575,16 @@ public:
 
   int unit_group_affiliation(System *sys, long source_id, long talkgroup_num) override
   {
+    // TRUNK-RECORDER PLUGIN API
+    //   Called each AFFILIATION message
+
     // MQTT: unit_topic/shortname/join
-    // Unit talkgroup affiliation (join)
+    //   Unit talkgroup affiliation (join)
 
     if ((this->unit_enabled))
     {
       boost::property_tree::ptree unit_node;
-      std::string patch_string = patches_to_string(sys->get_talkgroup_patch(talkgroup_num));
+      std::string patch_string = patches_to_str(sys->get_talkgroup_patch(talkgroup_num));
 
       unit_node.put("sysNum", sys->get_sys_num());
       unit_node.put("system", sys->get_short_name());
@@ -562,8 +605,11 @@ public:
 
   int unit_data_grant(System *sys, long source_id) override
   {
+    // TRUNK-RECORDER PLUGIN API
+    //   Called each DATA_GRANT message
+
     // MQTT: unit_topic/shortname/data
-    // Unit data grant (data)
+    //   Unit data grant (data)
 
     if ((this->unit_enabled))
     {
@@ -580,8 +626,11 @@ public:
 
   int unit_answer_request(System *sys, long source_id, long talkgroup) override
   {
+    // TRUNK-RECORDER PLUGIN API
+    //   Called each UU_ANS_REQ message
+
     // MQTT: unit_topic/shortname/ans_req
-    // Unit answer_request (ans_req)
+    //   Unit answer_request (ans_req)
 
     if ((this->unit_enabled))
     {
@@ -604,13 +653,16 @@ public:
 
   int unit_location(System *sys, long source_id, long talkgroup_num) override
   {
+    // TRUNK-RECORDER PLUGIN API
+    //   Called each LOCATION message
+
     // MQTT: unit_topic/shortname/location
-    // Unit location/roaming update (location)
+    //   Unit location/roaming update (location)
 
     if ((this->unit_enabled))
     {
       boost::property_tree::ptree unit_node;
-      std::string patch_string = patches_to_string(sys->get_talkgroup_patch(talkgroup_num));
+      std::string patch_string = patches_to_str(sys->get_talkgroup_patch(talkgroup_num));
 
       unit_node.put("sysNum", sys->get_sys_num());
       unit_node.put("system", sys->get_short_name());
@@ -636,7 +688,8 @@ public:
 
   int parse_config(boost::property_tree::ptree &cfg) override
   {
-    // Called before init(); parses the config information for this plugin.
+    // TRUNK-RECORDER PLUGIN API
+    //   Called before init(); parses the config information for this plugin.
     
     this->mqtt_broker = cfg.get<std::string>("broker", "tcp://localhost:1883");
     this->client_id = cfg.get<std::string>("client_id", "tr-status");
@@ -683,7 +736,8 @@ public:
 
   int init(Config *config, std::vector<Source *> sources, std::vector<System *> systems) override
   {
-    // Plugin initialization; called after parse_config().
+    // TRUNK-RECORDER PLUGIN API
+    //   Plugin initialization; called after parse_config().
 
     frequency_format = config->frequency_format;
     this->instance_id = config->instance_id;
@@ -710,19 +764,21 @@ public:
 
   int start() override
   {
-    // Called after trunk-recorder finishes setup and the plugin is initialized
+    // TRUNK-RECORDER PLUGIN API
+    //   Called after trunk-recorder finishes setup and the plugin is initialized
 
     open_connection();
 
     send_config(this->sources, this->systems);
-    send_systems(this->systems);
+    setup_systems(this->systems);
     return 0;
   }
 
   int setup_config(std::vector<Source *> sources, std::vector<System *> systems) override
   {
-    // Called at the same periodicity of system_rates(), this can be use to accomplish
-    // occasional plugin tasks more efficiently than checking each cycle of poll_one().
+    // TRUNK-RECORDER PLUGIN API
+    //   Called at the same periodicity of system_rates(), this can be use to accomplish
+    //   occasional plugin tasks more efficiently than checking each cycle of poll_one().
     
     resend_recorders();
 
@@ -731,38 +787,12 @@ public:
 
   int poll_one() override
   {
-    // Called during each pass through the main loop of trunk-recorder.
+    // TRUNK-RECORDER PLUGIN API
+    //   Called during each pass through the main loop of trunk-recorder.
 
     resend_calls();
     return 0;
   }
-
-  int setup_recorder(Recorder *recorder) override
-  {
-    // Called when a recorder has been created or changes
-
-    send_recorder(recorder);
-    return 0;
-  }
-
-  int setup_system(System *system) override
-  {
-    // Called after a system has been created.
-
-    send_system(system);
-    send_systems(this->systems);
-    return 0;
-  }
-
-  int setup_systems(std::vector<System *> systems) override
-  {
-    // Called during startup when the initial systems have been created.
-    // May not have NAC or other details until after setup_systems().
-
-    send_systems(systems);
-    return 0;
-  }
-
 
   // ********************************
   // Helper functions
@@ -822,7 +852,7 @@ public:
     return std::string(rounded);
   }
 
-  std::string patches_to_string(std::vector<unsigned long> talkgroup_patches)
+  std::string patches_to_str(std::vector<unsigned long> talkgroup_patches)
   {
     // Combine a vector of talkgroup patches into a string.
 
