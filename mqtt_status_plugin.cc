@@ -39,14 +39,11 @@ class Mqtt_Status : public Plugin_Api, public virtual mqtt::callback, public vir
   std::string instance_id;
   mqtt::async_client *client;
 
-  time_t config_resend_time = time(NULL);
   time_t call_resend_time = time(NULL);
 
   std::map<std::string, int> system_map;
 
-  std::map<short, std::string> opcodes = {
-    {-1, "** Unidentified"},
-    {0xff, "** Unidentified"},
+  std::map<short, std::string> opcode_type = {
     {0x00, "GRP_V_CH_GRANT"},
     {0x02, "GRP_V_CH_GRANT_UPDT"},
     {0x03, "GRP_V_CH_GRANT_UPDT_EXP"},
@@ -91,9 +88,10 @@ class Mqtt_Status : public Plugin_Api, public virtual mqtt::callback, public vir
     {0x3c, "adjacent status"},
     {0x3d, "iden_up"},
     {0x3e, "P_PARM_BCST"},
+    {0xff, "** Unidentified"}
   };
 
-  std::map<short, std::string> messages_types = {
+  std::map<short, std::string> message_type = {
     {0, "GRANT"},
     {1, "STATUS"},
     {2, "UPDATE"},
@@ -110,8 +108,29 @@ class Mqtt_Status : public Plugin_Api, public virtual mqtt::callback, public vir
     {13, "UU_ANS_REQ"},
     {14, "UU_V_GRANT"},
     {15, "UU_V_UPDATE"},
-    {16, "ADJ_STS_BCST"},
-    {99, "UNKNOWN"},
+    {99, "UNKNOWN"}
+  };
+
+  std::map<short, std::string> tr_state = {
+    {0, "MONITORING"},
+    {1, "RECORDING"},
+    {2, "INACTIVE"},
+    {3, "ACTIVE"},
+    {4, "IDLE"},
+    {6, "STOPPED"},
+    {7, "AVAILABLE"},
+    {8, "IGNORE"}
+  };
+
+  std::map<short, std::string> mon_state = {
+    {0, "UNSPECIFIED"}, 
+    {1, "UNKNOWN_TG"},
+    {2, "IGNORED_TG"},
+    {3, "NO_SOURCE"},
+    {4, "NO_RECORDER"},
+    {5, "ENCRYPTED"},
+    {6, "DUPLICATE"},
+    {7, "SUPERSEDED"}
   };
 
 
@@ -135,12 +154,12 @@ public:
         TrunkMessage message = *it;
         boost::property_tree::ptree message_node;
 
-        message_node.put("short_name", system->get_short_name());
         message_node.put("sys_num", system->get_sys_num());
+        message_node.put("sys_name", system->get_short_name());
         message_node.put("trunk_msg", message.message_type);
-        message_node.put("trunk_msg_alpha", messages_types[message.message_type]);
-        message_node.put("opcode", message.opcode);
-        message_node.put("opcode_alpha", opcodes[message.opcode]);
+        message_node.put("trunk_msg_type", message_type[message.message_type]);
+        message_node.put("opcode", int_to_hex(message.opcode,2));
+        message_node.put("opcode_type", opcode_type[message.opcode]);
 
         send_object(message_node, "message", system->get_short_name().c_str(), this->message_topic, false);
       }
@@ -151,12 +170,11 @@ public:
   int system_rates(std::vector<System *> systems, float timeDiff) override
   {
     // TRUNK-RECORDER PLUGIN API
-    //   Called every three seconds
+    //   Called every three seconds (timeDiff)
 
     // MQTT: topic/rates
     //   Send control channel messages per second updates; rounded to two decimal places
 
-    boost::property_tree::ptree system_node;
     boost::property_tree::ptree systems_node;
 
     for (std::vector<System *>::iterator it = systems.begin(); it != systems.end(); ++it)
@@ -167,9 +185,13 @@ public:
       // Filter out conventional systems.  They do not have a call rate and 
       // get_current_control_channel() will cause a sefgault on non-trunked systems.
       if (sys_type.find("conventional") == std::string::npos) {
-        system_node = system->get_stats_current(timeDiff);
-        system_node.put("decoderate", round_to_str(system_node.get<double>("decoderate")));
-        system_node.put("short_name", system->get_short_name());
+        boost::property_tree::ptree stat_node = system->get_stats_current(timeDiff);
+        boost::property_tree::ptree system_node;
+
+        system_node.put("sys_num", stat_node.get<std::string>("id"));
+        system_node.put("sys_name", system->get_short_name());
+        system_node.put("decoderate", round_to_str(stat_node.get<double>("decoderate")));
+        system_node.put("decoderate_interval", timeDiff);
         system_node.put("control_channel", system->get_current_control_channel());
         systems_node.push_back(std::make_pair("", system_node));
       }
@@ -197,28 +219,25 @@ public:
       std::vector<Gain_Stage_t> gain_stages;
       boost::property_tree::ptree source_node;
       source_node.put("source_num", source->get_num());
-      source_node.put("antenna", source->get_antenna());
-
-      source_node.put("silence_frames", source->get_silence_frames());
-
+      source_node.put("rate", source->get_rate());
+      source_node.put("center", source->get_center());
       source_node.put("min_hz", source->get_min_hz());
       source_node.put("max_hz", source->get_max_hz());
-      source_node.put("center", source->get_center());
-      source_node.put("rate", source->get_rate());
+      source_node.put("error", source->get_error());
       source_node.put("driver", source->get_driver());
       source_node.put("device", source->get_device());
-      source_node.put("error", source->get_error());
+      source_node.put("antenna", source->get_antenna());
       source_node.put("gain", source->get_gain());
       gain_stages = source->get_gain_stages();
       for (std::vector<Gain_Stage_t>::iterator gain_it = gain_stages.begin(); gain_it != gain_stages.end(); ++gain_it)
       {
         source_node.put(gain_it->stage_name + "_gain", gain_it->value);
       }
-      source_node.put("antenna", source->get_antenna());
       source_node.put("analog_recorders", source->analog_recorder_count());
       source_node.put("digital_recorders", source->digital_recorder_count());
       source_node.put("debug_recorders", source->debug_recorder_count());
       source_node.put("sigmf_recorders", source->sigmf_recorder_count());
+      source_node.put("silence_frames", source->get_silence_frames());
       sources_node.push_back(std::make_pair("", source_node));
     }
 
@@ -228,20 +247,20 @@ public:
 
       boost::property_tree::ptree sys_node;
       boost::property_tree::ptree channels_node;
-      sys_node.put("audioArchive", sys->get_audio_archive());
-      sys_node.put("systemType", sys->get_system_type());
-      sys_node.put("shortName", sys->get_short_name());
-      sys_node.put("sysNum", sys->get_sys_num());
-      sys_node.put("uploadScript", sys->get_upload_script());
-      sys_node.put("recordUnkown", sys->get_record_unknown());
-      sys_node.put("callLog", sys->get_call_log());
-      sys_node.put("talkgroupsFile", sys->get_talkgroups_file());
-      sys_node.put("analog_levels", sys->get_analog_levels());
-      sys_node.put("digital_levels", sys->get_digital_levels());
+      sys_node.put("sys_num", sys->get_sys_num());
+      sys_node.put("sys_name", sys->get_short_name());
+      sys_node.put("system_type", sys->get_system_type());
+      sys_node.put("talkgroups_file", sys->get_talkgroups_file());
       sys_node.put("qpsk", sys->get_qpsk_mod());
       sys_node.put("squelch_db", sys->get_squelch_db());
-      std::vector<double> channels;
+      sys_node.put("analog_levels", sys->get_analog_levels());
+      sys_node.put("digital_levels", sys->get_digital_levels());
+      sys_node.put("audio_archive", sys->get_audio_archive());
+      sys_node.put("upload_script", sys->get_upload_script());
+      sys_node.put("record_unkown", sys->get_record_unknown());
+      sys_node.put("call_log", sys->get_call_log());
 
+      std::vector<double> channels;
       if ((sys->get_system_type() == "conventional") || (sys->get_system_type() == "conventionalP25"))
       {
         channels = sys->get_channels();
@@ -249,7 +268,7 @@ public:
       else
       {
         channels = sys->get_control_channels();
-        sys_node.put("controlChannel", sys->get_current_control_channel());
+        sys_node.put("control_channel", sys->get_current_control_channel());
       }
 
       for (std::vector<double>::iterator chan_it = channels.begin(); chan_it != channels.end(); ++chan_it)
@@ -274,16 +293,15 @@ public:
     }
     root.add_child("sources", sources_node);
     root.add_child("systems", systems_node);
-    root.put("captureDir", this->config->capture_dir);
-    root.put("uploadServer", this->config->upload_server);
+    root.put("capture_dir", this->config->capture_dir);
+    root.put("upload_server", this->config->upload_server);
 
     // root.put("defaultMode", default_mode);
-    root.put("callTimeout", this->config->call_timeout);
-    root.put("logFile", this->config->log_file);
-    root.put("instanceId", this->config->instance_id);
-    root.put("instanceKey", this->config->instance_key);
-    root.put("logFile", this->config->log_file);
-    root.put("type", "config");
+    root.put("call_timeout", this->config->call_timeout);
+    root.put("log_file", this->config->log_file);
+    root.put("instance_id", this->config->instance_id);
+    root.put("instance_key", this->config->instance_key);
+    root.put("log_file", this->config->log_file);
 
     if (this->config->broadcast_signals == true)
     {
@@ -303,14 +321,24 @@ public:
     //   Send the configuration information for all systems
     //   retained = true ; Message will be kept at the MQTT broker to avoid the need to resend.
 
-    boost::property_tree::ptree system_node;
+    boost::property_tree::ptree systems_node;
 
     for (std::vector<System *>::iterator it = systems.begin(); it != systems.end(); ++it)
     {
       System *system = *it;
-      system_node.push_back(std::make_pair("", system->get_stats()));
+      boost::property_tree::ptree system_node;
+      boost::property_tree::ptree stat_node = system->get_stats();
+
+      system_node.put("sys_num", stat_node.get<std::string>("id"));
+      system_node.put("sys_name", stat_node.get<std::string>("name"));
+      system_node.put("type", stat_node.get<std::string>("type"));
+      system_node.put("sysid", int_to_hex(stat_node.get<int>("sysid"),0));
+      system_node.put("wacn", int_to_hex(stat_node.get<int>("wacn"),0));
+      system_node.put("nac", int_to_hex(stat_node.get<int>("nac"),0));
+
+      systems_node.push_back(std::make_pair("", system_node));
     }
-    return send_object(system_node, "systems", "systems", this->topic, true);
+    return send_object(systems_node, "systems", "systems", this->topic, true);
   }
 
   int setup_system(System *system) override
@@ -321,9 +349,20 @@ public:
     // MQTT: topic/system
     //   Send the configuration information for a single system.
 
+    boost::property_tree::ptree system_node;
+    boost::property_tree::ptree stat_node = system->get_stats();
+
+    system_node.put("sys_num", stat_node.get<std::string>("id"));
+    system_node.put("sys_name", stat_node.get<std::string>("name"));
+    system_node.put("type", stat_node.get<std::string>("type"));
+    system_node.put("sysid", int_to_hex(stat_node.get<int>("sysid"),0));
+    system_node.put("wacn", int_to_hex(stat_node.get<int>("wacn"),0));
+    system_node.put("nac", int_to_hex(stat_node.get<int>("nac"),0));
+
     // Resend the full system list with each update 
     setup_systems(this->systems);
-    return send_object(system->get_stats(), "system", "system", this->topic, false);
+
+    return send_object(system_node, "system", "system", this->topic, false);
   }
 
   int calls_active(std::vector<Call *> calls) override
@@ -339,17 +378,51 @@ public:
     this->tr_calls = calls;
     this->tr_calls_set = true;
     
-    boost::property_tree::ptree call_node;
+    boost::property_tree::ptree calls_node;
 
     for (std::vector<Call *>::iterator it = calls.begin(); it != calls.end(); ++it)
     {
       Call *call = *it;
       if ( (call->get_current_length() > 0) || (!call->is_conventional()) ) {
-        call_node.push_back(std::make_pair("", round_stats(call->get_stats())));
+        boost::property_tree::ptree stat_node = call->get_stats();
+        boost::property_tree::ptree call_node;
+
+        call_node.put("id", stat_node.get<std::string>("id"));
+        call_node.put("call_num", stat_node.get<std::string>("callNum"));
+        call_node.put("freq", stat_node.get<std::string>("freq"));
+        call_node.put("sys_num", stat_node.get<std::string>("sysNum"));
+        call_node.put("sys_name", stat_node.get<std::string>("shortName"));
+        call_node.put("talkgroup", stat_node.get<std::string>("talkgroup"));
+        call_node.put("talkgroup_alpha_tag", stat_node.get<std::string>("talkgrouptag"));
+        call_node.put("unit", stat_node.get<std::string>("srcId"));
+        call_node.put("unit_alpha_tag", call->get_system()->find_unit_tag(stat_node.get<long>("srcId")));
+        call_node.put("elapsed", stat_node.get<std::string>("elapsed"));
+        call_node.put("length", round_to_str(stat_node.get<double>("length")));
+        call_node.put("call_state", stat_node.get<std::string>("state"));
+        call_node.put("call_state_type", tr_state[stat_node.get<int>("state")]); 
+        call_node.put("mon_state", stat_node.get<std::string>("monState"));
+        call_node.put("mon_state_type", mon_state[stat_node.get<int>("monState")]);
+        
+        call_node.put("phase2", stat_node.get<std::string>("phase2"));
+        call_node.put("conventional", stat_node.get<std::string>("conventional"));
+        call_node.put("encrypted", stat_node.get<std::string>("encrypted"));
+        call_node.put("emergency", stat_node.get<std::string>("emergency"));
+        call_node.put("stop_time", stat_node.get<std::string>("stopTime"));
+
+        // Not all calls have recorder info
+        if (stat_node.count("recNum")) {
+          call_node.put("rec_num", stat_node.get<std::string>("recNum"));
+          call_node.put("src_num", stat_node.get<std::string>("srcNum"));
+          call_node.put("rec_state", stat_node.get<std::string>("recState"));
+          call_node.put("rec_state_type", tr_state[stat_node.get<int>("recState")]); 
+          call_node.put("analog", stat_node.get<std::string>("analog"));
+        }
+
+        calls_node.push_back(std::make_pair("", call_node));
       }
     }
 
-    return send_object(call_node, "calls", "calls_active", this->topic, false);
+    return send_object(calls_node, "calls", "calls_active", this->topic, false);
   }
 
   int send_recorders(std::vector<Recorder *> recorders)
@@ -357,16 +430,28 @@ public:
     // MQTT: topic/recorders
     //   Send the status of all recorders
 
-    boost::property_tree::ptree rec_node;
+    boost::property_tree::ptree recs_node;
 
     for (std::vector<Recorder *>::iterator it = recorders.begin(); it != recorders.end(); ++it)
     {
       Recorder *recorder = *it;
-      // Some stats are rounded to prevent long/repeating floats
-      rec_node.push_back(std::make_pair("", round_stats(recorder->get_stats())));
+      boost::property_tree::ptree stat_node = recorder->get_stats();
+      boost::property_tree::ptree rec_node;
+
+      rec_node.put("id", stat_node.get<std::string>("id"));
+      rec_node.put("src_num", stat_node.get<std::string>("srcNum"));
+      rec_node.put("rec_num", stat_node.get<std::string>("recNum"));
+      rec_node.put("type", stat_node.get<std::string>("type"));
+      rec_node.put("duration", round_to_str(stat_node.get<double>("duration")));
+      rec_node.put("freq", recorder->get_freq()); 
+      rec_node.put("count", stat_node.get<std::string>("count"));
+      rec_node.put("rec_state", stat_node.get<std::string>("state"));
+      rec_node.put("rec_state_type", tr_state[stat_node.get<int>("state")]); 
+
+      recs_node.push_back(std::make_pair("", rec_node)); 
     }
 
-    return send_object(rec_node, "recorders", "recorders", this->topic, false);
+    return send_object(recs_node, "recorders", "recorders", this->topic, false);
   }
 
   int setup_recorder(Recorder *recorder) override
@@ -376,8 +461,21 @@ public:
 
     // MQTT: topic/recorder
     //   Send updates on individual recorders
+    
+    boost::property_tree::ptree stat_node = recorder->get_stats();
+    boost::property_tree::ptree rec_node;
 
-    return send_object(round_stats(recorder->get_stats()), "recorder", "recorder", this->topic, false);
+    rec_node.put("id", stat_node.get<std::string>("id"));
+    rec_node.put("src_num", stat_node.get<std::string>("srcNum"));
+    rec_node.put("rec_num", stat_node.get<std::string>("recNum"));
+    rec_node.put("type", stat_node.get<std::string>("type"));
+    rec_node.put("freq", recorder->get_freq());
+    rec_node.put("duration", round_to_str(stat_node.get<double>("duration")));
+    rec_node.put("count", stat_node.get<std::string>("count"));
+    rec_node.put("rec_state", stat_node.get<std::string>("state"));
+    rec_node.put("rec_state_type", tr_state[stat_node.get<int>("state")]); 
+
+    return send_object(rec_node, "recorder", "recorder", this->topic, false);
   }
 
   int call_start(Call *call) override
@@ -399,12 +497,13 @@ public:
       boost::property_tree::ptree call_node;
       std::string patch_string = patches_to_str(call->get_system()->get_talkgroup_patch(talkgroup_num));
 
-      call_node.put("callNum", call->get_call_num());
-      call_node.put("system", short_name );
-      call_node.put("unit", source_id );
-      call_node.put("unit_alpha", call->get_system()->find_unit_tag(source_id));
+      call_node.put("sys_num", call->get_system()->get_sys_num());
+      call_node.put("sys_name", short_name );
+      call_node.put("call_num", call->get_call_num());
       call_node.put("start_time", call->get_start_time());
       call_node.put("freq", call->get_freq());
+      call_node.put("unit", source_id );
+      call_node.put("unit_alpha_tag", call->get_system()->find_unit_tag(source_id));
       call_node.put("talkgroup", talkgroup_num);
       call_node.put("talkgroup_alpha_tag", call->get_talkgroup_tag());
       call_node.put("talkgroup_patches", patch_string);
@@ -412,8 +511,41 @@ public:
       send_object(call_node, "call", "call", this->unit_topic+"/"+short_name, false);
     }
 
-    // Some stats are rounded to prevent long/repeating floats
-    return send_object(round_stats(call->get_stats()), "call", "call_start", this->topic, false);
+    boost::property_tree::ptree stat_node = call->get_stats();
+    boost::property_tree::ptree call_node;
+
+    call_node.put("id", stat_node.get<std::string>("id"));
+    call_node.put("call_num", stat_node.get<std::string>("callNum"));
+    call_node.put("freq", stat_node.get<std::string>("freq"));
+    call_node.put("sys_num", stat_node.get<std::string>("sysNum"));
+    call_node.put("sys_name", stat_node.get<std::string>("shortName"));
+    call_node.put("talkgroup", stat_node.get<std::string>("talkgroup"));
+    call_node.put("talkgroup_alpha_tag", stat_node.get<std::string>("talkgrouptag"));
+    call_node.put("unit", stat_node.get<std::string>("srcId"));
+    call_node.put("unit_alpha_tag", call->get_system()->find_unit_tag(source_id));
+    call_node.put("elapsed", stat_node.get<std::string>("elapsed"));
+    call_node.put("length", round_to_str(stat_node.get<double>("length")));
+    call_node.put("call_state", stat_node.get<std::string>("state"));
+    call_node.put("call_state_type", tr_state[stat_node.get<int>("state")]); 
+    call_node.put("mon_state", stat_node.get<std::string>("monState"));
+    call_node.put("mon_state_type", mon_state[stat_node.get<int>("monState")]);
+    
+    call_node.put("phase2", stat_node.get<std::string>("phase2"));
+    call_node.put("conventional", stat_node.get<std::string>("conventional"));
+    call_node.put("encrypted", stat_node.get<std::string>("encrypted"));
+    call_node.put("emergency", stat_node.get<std::string>("emergency"));
+    call_node.put("stop_time", stat_node.get<std::string>("stopTime"));
+
+    // Not all calls have recorder info
+    if (stat_node.count("recNum")) {
+      call_node.put("rec_num", stat_node.get<std::string>("recNum"));
+      call_node.put("src_num", stat_node.get<std::string>("srcNum"));
+      call_node.put("rec_state", stat_node.get<std::string>("recState"));
+      call_node.put("rec_state_type", tr_state[stat_node.get<int>("recState")]); 
+      call_node.put("analog", stat_node.get<std::string>("analog"));
+    }
+
+    return send_object(call_node, "call", "call_start", this->topic, false);
   }
 
   int call_end(Call_Data_t call_info) override
@@ -440,21 +572,20 @@ public:
       
       BOOST_FOREACH (auto& transmission, call_info.transmission_list)
       {
-        end_node.put("callNum", call_info.call_num);
-        end_node.put("system", call_info.short_name);
+        end_node.put("call_num", call_info.call_num);
+        end_node.put("sys_name", call_info.short_name);
         end_node.put("unit", transmission.source);
-        end_node.put("unit_alpha", source_list[transmision_num].tag);
+        end_node.put("unit_alpha_tag", source_list[transmision_num].tag);
         end_node.put("start_time", transmission.start_time);
         end_node.put("stop_time", transmission.stop_time);
         end_node.put("sample_count", transmission.sample_count);
         end_node.put("spike_count", transmission.spike_count);
         end_node.put("error_count", transmission.error_count);
         end_node.put("freq", call_info.freq);
-        end_node.put("length", transmission.length);
+        end_node.put("length", round_to_str(transmission.length));
         end_node.put("transmission_filename", transmission.filename);
-        //end_node.put("transmission_base_filename", transmission.base_filename);
         end_node.put("call_filename", call_info.filename);
-        end_node.put("position", source_list[transmision_num].position);
+        end_node.put("position", round_to_str(source_list[transmision_num].position));
         end_node.put("talkgroup", call_info.talkgroup);
         end_node.put("talkgroup_alpha_tag",call_info.talkgroup_alpha_tag);
         end_node.put("talkgroup_description",call_info.talkgroup_description);
@@ -464,14 +595,16 @@ public:
         end_node.put("emergency", source_list[transmision_num].emergency);
         end_node.put("signal_system", source_list[transmision_num].signal_system);
         
-        // Some stats are rounded to prevent long/repeating floats
-        send_object(round_stats(end_node), "end", "end", this->unit_topic+"/"+call_info.short_name.c_str(), false);
+        send_object(end_node, "end", "end", this->unit_topic+"/"+call_info.short_name.c_str(), false);
         transmision_num++;
       }
     }
     boost::property_tree::ptree call_node;
-    //call_node.put("status",call_info.status);
-    call_node.put("callNum",call_info.call_num);
+    call_node.put("call_num",call_info.call_num);
+    call_node.put("sys_name",call_info.short_name);
+    call_node.put("start_time",call_info.start_time);
+    call_node.put("stop_time",call_info.stop_time);
+    call_node.put("length",round_to_str(call_info.length));
     call_node.put("process_call_time",call_info.process_call_time);
     call_node.put("retry_attempt",call_info.retry_attempt);
     call_node.put("error_count",call_info.error_count);
@@ -481,18 +614,7 @@ public:
     call_node.put("emergency",call_info.emergency);
     call_node.put("tdma_slot",call_info.tdma_slot);
     call_node.put("phase2_tdma",call_info.phase2_tdma);
-    //call_node.put("transmission_list",call_info.transmission_list);
-    call_node.put("short_name",call_info.short_name);
-    //call_node.put("upload_script",call_info.upload_script = sys->get_upload_script();
-    //call_node.put("audio_archive",call_info.audio_archive = sys->get_audio_archive();
-    //call_node.put("transmission_archive",call_info.transmission_archive = sys->get_transmission_archive();
-    //call_node.put("call_log",call_info.call_log = sys->get_call_log();
-    call_node.put("call_num",call_info.call_num);
-    //call_node.put("compress_wav",call_info.compress_wav);
     call_node.put("talkgroup",call_info.talkgroup);
-    //call_node.put("talkgroup_display",call_info.talkgroup_display = call->get_talkgroup_display();
-    //call_info.patched_talkgroups = sys->get_talkgroup_patch(call_info.talkgroup);
-    //call_info.min_transmissions_removed = 0;
     call_node.put("talkgroup_tag",call_info.talkgroup_tag);
     call_node.put("talkgroup_alpha_tag",call_info.talkgroup_alpha_tag);
     call_node.put("talkgroup_description",call_info.talkgroup_description);
@@ -500,14 +622,20 @@ public:
     call_node.put("talkgroup_patches", patch_string);
     call_node.put("audio_type",call_info.audio_type);
 
-    // call_node.put("transmission_source_list",call_info.transmission_source_list);
-    // call_node.put("transmission_error_list",call_info.transmission_error_list);
-    call_node.put("start_time",call_info.start_time);
-    call_node.put("stop_time",call_info.stop_time);
-    call_node.put("length",call_info.length);
-
+    //call_node.put("status",call_info.status);
+    //call_node.put("transmission_list",call_info.transmission_list);
+    //call_node.put("upload_script",call_info.upload_script = sys->get_upload_script();
+    //call_node.put("audio_archive",call_info.audio_archive = sys->get_audio_archive();
+    //call_node.put("transmission_archive",call_info.transmission_archive = sys->get_transmission_archive();
+    //call_node.put("call_log",call_info.call_log = sys->get_call_log();
+    //call_node.put("compress_wav",call_info.compress_wav);
+    //call_node.put("talkgroup_display",call_info.talkgroup_display = call->get_talkgroup_display();
+    //call_info.min_transmissions_removed = 0;
+    //call_node.put("transmission_source_list",call_info.transmission_source_list);
+    //call_node.put("transmission_error_list",call_info.transmission_error_list);
+    
     // Some stats are rounded to prevent long/repeating floats
-    return send_object(round_stats(call_node), "call", "call_end", this->topic, false);
+    return send_object(call_node, "call", "call_end", this->topic, false);
   }
 
   int unit_registration(System *sys, long source_id) override
@@ -522,9 +650,10 @@ public:
     {
       boost::property_tree::ptree unit_node;
 
-      unit_node.put("system", sys->get_short_name());
+      unit_node.put("sys_num", sys->get_sys_num());
+      unit_node.put("sys_name", sys->get_short_name());
       unit_node.put("unit", source_id );
-      unit_node.put("unit_alpha", sys->find_unit_tag(source_id));
+      unit_node.put("unit_alpha_tag", sys->find_unit_tag(source_id));
 
       return send_object(unit_node, "on", "on", this->unit_topic+"/"+sys->get_short_name().c_str(), false);
     }
@@ -543,9 +672,10 @@ public:
     {
       boost::property_tree::ptree unit_node;
 
-      unit_node.put("system", sys->get_short_name());
+      unit_node.put("sys_num", sys->get_sys_num());
+      unit_node.put("sys_name", sys->get_short_name());
       unit_node.put("unit", source_id );
-      unit_node.put("unit_alpha", sys->find_unit_tag(source_id));
+      unit_node.put("unit_alpha_tag", sys->find_unit_tag(source_id));
 
       return send_object(unit_node, "off", "off", this->unit_topic+"/"+sys->get_short_name().c_str(), false);
     }
@@ -564,9 +694,10 @@ public:
     {
       boost::property_tree::ptree unit_node;
 
-      unit_node.put("system", sys->get_short_name());
+      unit_node.put("sys_num", sys->get_sys_num());
+      unit_node.put("sys_name", sys->get_short_name());
       unit_node.put("unit", source_id );
-      unit_node.put("unit_alpha", sys->find_unit_tag(source_id));
+      unit_node.put("unit_alpha_tag", sys->find_unit_tag(source_id));
 
       return send_object(unit_node, "ackresp", "ackresp", this->unit_topic+"/"+sys->get_short_name().c_str(), false);
     }
@@ -586,17 +717,17 @@ public:
       boost::property_tree::ptree unit_node;
       std::string patch_string = patches_to_str(sys->get_talkgroup_patch(talkgroup_num));
 
-      unit_node.put("sysNum", sys->get_sys_num());
-      unit_node.put("system", sys->get_short_name());
+      unit_node.put("sys_num", sys->get_sys_num());
+      unit_node.put("sys_name", sys->get_short_name());
       unit_node.put("unit", source_id );
-      unit_node.put("unit_alpha", sys->find_unit_tag(source_id));
+      unit_node.put("unit_alpha_tag", sys->find_unit_tag(source_id));
       unit_node.put("talkgroup", talkgroup_num);
-      unit_node.put("talkgroup_patches", patch_string);
       Talkgroup *tg = sys->find_talkgroup(talkgroup_num);
       if (tg != NULL)
       {
         unit_node.put("talkgroup_alpha_tag", tg->alpha_tag);
       }
+      unit_node.put("talkgroup_patches", patch_string);
 
       return send_object(unit_node, "join", "join", this->unit_topic+"/"+sys->get_short_name().c_str(), false);
     }
@@ -615,9 +746,10 @@ public:
     {
       boost::property_tree::ptree unit_node;
 
-      unit_node.put("system", sys->get_short_name());
+      unit_node.put("sys_num", sys->get_sys_num());
+      unit_node.put("sys_name", sys->get_short_name());
       unit_node.put("unit", source_id );
-      unit_node.put("unit_alpha", sys->find_unit_tag(source_id));
+      unit_node.put("unit_alpha_tag", sys->find_unit_tag(source_id));
       
       return send_object(unit_node, "data", "data", this->unit_topic+"/"+sys->get_short_name().c_str(), false);
     }
@@ -636,9 +768,10 @@ public:
     {
       boost::property_tree::ptree unit_node;
 
-      unit_node.put("system", sys->get_short_name());
+      unit_node.put("sys_num", sys->get_sys_num());
+      unit_node.put("sys_name", sys->get_short_name());
       unit_node.put("unit", source_id );
-      unit_node.put("unit_alpha", sys->find_unit_tag(source_id));
+      unit_node.put("unit_alpha_tag", sys->find_unit_tag(source_id));
       unit_node.put("talkgroup", talkgroup);
       Talkgroup *tg = sys->find_talkgroup(talkgroup);
       if (tg != NULL)
@@ -664,18 +797,17 @@ public:
       boost::property_tree::ptree unit_node;
       std::string patch_string = patches_to_str(sys->get_talkgroup_patch(talkgroup_num));
 
-      unit_node.put("sysNum", sys->get_sys_num());
-      unit_node.put("system", sys->get_short_name());
+      unit_node.put("sys_num", sys->get_sys_num());
+      unit_node.put("sys_name", sys->get_short_name());
       unit_node.put("unit", source_id );
       unit_node.put("unit_alpha", sys->find_unit_tag(source_id));
       unit_node.put("talkgroup", talkgroup_num);
-      unit_node.put("talkgroup_patches", patch_string);
       Talkgroup *tg = sys->find_talkgroup(talkgroup_num);
       if (tg != NULL)
       {
         unit_node.put("talkgroup_alpha_tag", tg->alpha_tag);
       }
-
+      unit_node.put("talkgroup_patches", patch_string);
       return send_object(unit_node, "location", "location", this->unit_topic+"/"+sys->get_short_name().c_str(), false);
     }
     return 1;
@@ -767,10 +899,13 @@ public:
     // TRUNK-RECORDER PLUGIN API
     //   Called after trunk-recorder finishes setup and the plugin is initialized
 
+    // Start the MQTT connection
     open_connection();
 
+    // Send config and system MQTT messages
     send_config(this->sources, this->systems);
     setup_systems(this->systems);
+
     return 0;
   }
 
@@ -791,8 +926,10 @@ public:
     //   Called during each pass through the main loop of trunk-recorder.
 
     resend_calls();
+
     return 0;
   }
+
 
   // ********************************
   // Helper functions
@@ -800,9 +937,9 @@ public:
 
   int resend_recorders()
   {
+    // Periodically update the status of all recorders.
     // Triggered by setup_config() every 3 seconds.
 
-    // Update recorders every 3 seconds.
     std::vector<Recorder *> recorders;
     for (std::vector<Source *>::iterator it = this->sources.begin(); it != this->sources.end(); ++it)
     {
@@ -817,12 +954,12 @@ public:
 
   int resend_calls()
   {
-    // Triggered by poll_one().
     // Use a pointer from calls_active() to update the active call list once a second.
+    // Triggered by poll_one().
 
     time_t now_time = time(NULL);
 
-    if (((now_time - this->call_resend_time ) > 1 ))
+    if (((now_time - this->call_resend_time ) >= 1 ))
     {
       calls_active(this->tr_calls);
       this->call_resend_time = now_time;
@@ -843,9 +980,20 @@ public:
     return this->systems[sys_num];
   }
 
+  std::string int_to_hex(int num, int places)
+  {
+    // Return a hexidecimal value for a given integer, zero-padded for "places"
+
+    std::stringstream stream;
+    stream << std::setfill ('0') << std::uppercase << std::setw(places) << std::hex << num;
+    std::string result(stream.str());
+    return result;
+  }
+
   std::string round_to_str(double num)
   {
     // Round a float to two decimal places and return it as as string.
+    // ["position", "length", "duration"] are the usual offenders.
 
     char rounded[20];
     snprintf(rounded, sizeof(rounded), "%.2f", num);
@@ -866,20 +1014,6 @@ public:
       patch_string += std::to_string(TGID);
     }
     return patch_string;
-  }
-
-  boost::property_tree::ptree round_stats(boost::property_tree::ptree stats)
-  {
-    // Parse a proprty tree for gnarly floats and round them to two decimal places
-
-    std::vector<std::string> keys = { "position", "length", "duration" };
-    BOOST_FOREACH (const std::string& key, keys) 
-    {
-      if (stats.find(key) != stats.not_found()) {
-        stats.put(key, round_to_str(stats.get<double>(key)));
-      }
-    }
-    return stats;
   }
 
 
