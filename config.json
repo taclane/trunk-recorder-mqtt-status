@@ -25,7 +25,6 @@
         "topic": "robotastic/feeds",
         "unit_topic": "robotastic/units",
         "username": "robotastic",
-        "password": "",
-        "refresh": 30
+        "password": ""
     }]
 }

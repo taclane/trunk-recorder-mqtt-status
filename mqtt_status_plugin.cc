@@ -25,7 +25,6 @@ class Mqtt_Status : public Plugin_Api, public virtual mqtt::callback, public vir
   bool tr_calls_set = false;
 
   int qos;
-  int refresh;
   std::vector<Source *> sources;
   std::vector<System *> systems;
   std::vector<Call *> tr_calls;
@@ -140,7 +139,7 @@ public:
         message_node.put("opcode", message.opcode);
         message_node.put("opcode_alpha", opcodes[message.opcode]);
 
-        send_object(message_node, "message", system->get_short_name().c_str(), this->message_topic);
+        send_object(message_node, "message", system->get_short_name().c_str(), this->message_topic, false);
       }
     }
   return 0;
@@ -169,13 +168,14 @@ public:
       }
     }
 
-    return send_object(systems_node, "rates", "rates", this->topic);
+    return send_object(systems_node, "rates", "rates", this->topic, false);
   }
 
   void send_config(std::vector<Source *> sources, std::vector<System *> systems)
   {
     // MQTT: topic/config
-    // Periodically send elements of the trunk recorder config.json
+    // Send elements of the trunk recorder config.json.  
+    // retained = true ; Message will be kept at the MQTT broker to avoid the need to resend.
 
     if (m_open == false)
       return;
@@ -283,13 +283,14 @@ public:
       root.put("broadcast_signals", this->config->broadcast_signals);
     }
 
-    send_object(root, "config", "config", this->topic);
+    send_object(root, "config", "config", this->topic, true);
   }
 
   int send_systems(std::vector<System *> systems)
   {
     // MQTT: topic/systems
     // Send the configuration information for all systems
+    // retained = true ; Message will be kept at the MQTT broker to avoid the need to resend.
 
     boost::property_tree::ptree system_node;
 
@@ -298,7 +299,7 @@ public:
       System *system = *it;
       system_node.push_back(std::make_pair("", system->get_stats()));
     }
-    return send_object(system_node, "systems", "systems", this->topic);
+    return send_object(system_node, "systems", "systems", this->topic, true);
   }
 
   int send_system(System *system)
@@ -306,7 +307,7 @@ public:
     // MQTT: topic/system
     // Send the configuration information for a single system
 
-    return send_object(system->get_stats(), "system", "system", this->topic);
+    return send_object(system->get_stats(), "system", "system", this->topic, false);
   }
 
   int calls_active(std::vector<Call *> calls) override
@@ -328,7 +329,7 @@ public:
       }
     }
 
-    return send_object(call_node, "calls", "calls_active", this->topic);
+    return send_object(call_node, "calls", "calls_active", this->topic, false);
   }
 
   int send_recorders(std::vector<Recorder *> recorders)
@@ -345,7 +346,7 @@ public:
       rec_node.push_back(std::make_pair("", round_stats(recorder->get_stats())));
     }
 
-    return send_object(rec_node, "recorders", "recorders", this->topic);
+    return send_object(rec_node, "recorders", "recorders", this->topic, false);
   }
 
   int send_recorder(Recorder *recorder)
@@ -354,7 +355,7 @@ public:
     // Send the status of a single recorder
 
     // Some stats are rounded to prevent long/repeating floats
-    return send_object(round_stats(recorder->get_stats()), "recorder", "recorder", this->topic);
+    return send_object(round_stats(recorder->get_stats()), "recorder", "recorder", this->topic, false);
   }
 
   int call_start(Call *call) override
@@ -382,11 +383,11 @@ public:
       call_node.put("talkgroup_alpha_tag", call->get_talkgroup_tag());
       call_node.put("talkgroup_patches", patch_string);
       call_node.put("encrypted", call->get_encrypted());
-      send_object(call_node, "call", "call", this->unit_topic+"/"+short_name);
+      send_object(call_node, "call", "call", this->unit_topic+"/"+short_name, false);
     }
 
     // Some stats are rounded to prevent long/repeating floats
-    return send_object(round_stats(call->get_stats()), "call", "call_start", this->topic);
+    return send_object(round_stats(call->get_stats()), "call", "call_start", this->topic, false);
   }
 
   int call_end(Call_Data_t call_info) override
@@ -433,7 +434,7 @@ public:
         end_node.put("signal_system", source_list[transmision_num].signal_system);
         
         // Some stats are rounded to prevent long/repeating floats
-        send_object(round_stats(end_node), "end", "end", this->unit_topic+"/"+call_info.short_name.c_str());
+        send_object(round_stats(end_node), "end", "end", this->unit_topic+"/"+call_info.short_name.c_str(), false);
         transmision_num++;
       }
     }
@@ -475,7 +476,7 @@ public:
     call_node.put("length",call_info.length);
 
     // Some stats are rounded to prevent long/repeating floats
-    return send_object(round_stats(call_node), "call", "call_end", this->topic);
+    return send_object(round_stats(call_node), "call", "call_end", this->topic, false);
   }
 
   int unit_registration(System *sys, long source_id) override
@@ -491,7 +492,7 @@ public:
       unit_node.put("unit", source_id );
       unit_node.put("unit_alpha", sys->find_unit_tag(source_id));
 
-      return send_object(unit_node, "on", "on", this->unit_topic+"/"+sys->get_short_name().c_str());
+      return send_object(unit_node, "on", "on", this->unit_topic+"/"+sys->get_short_name().c_str(), false);
     }
     return 1;
   }
@@ -509,7 +510,7 @@ public:
       unit_node.put("unit", source_id );
       unit_node.put("unit_alpha", sys->find_unit_tag(source_id));
 
-      return send_object(unit_node, "off", "off", this->unit_topic+"/"+sys->get_short_name().c_str());
+      return send_object(unit_node, "off", "off", this->unit_topic+"/"+sys->get_short_name().c_str(), false);
     }
     return 1;
   }
@@ -527,7 +528,7 @@ public:
       unit_node.put("unit", source_id );
       unit_node.put("unit_alpha", sys->find_unit_tag(source_id));
 
-      return send_object(unit_node, "ackresp", "ackresp", this->unit_topic+"/"+sys->get_short_name().c_str());
+      return send_object(unit_node, "ackresp", "ackresp", this->unit_topic+"/"+sys->get_short_name().c_str(), false);
     }
     return 1;
   }
@@ -554,7 +555,7 @@ public:
         unit_node.put("talkgroup_alpha_tag", tg->alpha_tag);
       }
 
-      return send_object(unit_node, "join", "join", this->unit_topic+"/"+sys->get_short_name().c_str());
+      return send_object(unit_node, "join", "join", this->unit_topic+"/"+sys->get_short_name().c_str(), false);
     }
     return 1;
   }
@@ -572,7 +573,7 @@ public:
       unit_node.put("unit", source_id );
       unit_node.put("unit_alpha", sys->find_unit_tag(source_id));
       
-      return send_object(unit_node, "data", "data", this->unit_topic+"/"+sys->get_short_name().c_str());
+      return send_object(unit_node, "data", "data", this->unit_topic+"/"+sys->get_short_name().c_str(), false);
     }
     return 1;
   }
@@ -596,7 +597,7 @@ public:
         unit_node.put("talkgroup_alpha_tag", tg->alpha_tag);
       }
 
-      return send_object(unit_node, "ans_req", "ans_req", this->unit_topic+"/"+sys->get_short_name().c_str());
+      return send_object(unit_node, "ans_req", "ans_req", this->unit_topic+"/"+sys->get_short_name().c_str(), false);
     }
     return 1;
   }
@@ -623,7 +624,7 @@ public:
         unit_node.put("talkgroup_alpha_tag", tg->alpha_tag);
       }
 
-      return send_object(unit_node, "location", "location", this->unit_topic+"/"+sys->get_short_name().c_str());
+      return send_object(unit_node, "location", "location", this->unit_topic+"/"+sys->get_short_name().c_str(), false);
     }
     return 1;
   }
@@ -642,7 +643,6 @@ public:
     this->username = cfg.get<std::string>("username", "");
     this->password = cfg.get<std::string>("password", "");
     this->topic = cfg.get<std::string>("topic", "");
-    this->refresh = cfg.get<int>("refresh", 60);
     this->qos = cfg.get<int>("qos", 0);
 
     this->unit_topic = cfg.get<std::string>("unit_topic", "");
@@ -676,7 +676,6 @@ public:
     BOOST_LOG_TRIVIAL(info) << " MQTT Status Plugin Topic: " << this->topic;
     BOOST_LOG_TRIVIAL(info) << " MQTT Unit Status Plugin Topic: " << this->unit_topic;
     BOOST_LOG_TRIVIAL(info) << " MQTT Trunk Message Plugin Topic: " << this->message_topic;
-    BOOST_LOG_TRIVIAL(info) << " MQTT System/Config Refresh Interval: " << this->refresh;
     BOOST_LOG_TRIVIAL(info) << " MQTT Status Plugin message QOS: " << this->qos;
 
     return 0;
@@ -714,6 +713,9 @@ public:
     // Called after trunk-recorder finishes setup and the plugin is initialized
 
     open_connection();
+
+    send_config(this->sources, this->systems);
+    send_systems(this->systems);
     return 0;
   }
 
@@ -722,7 +724,7 @@ public:
     // Called at the same periodicity of system_rates(), this can be use to accomplish
     // occasional plugin tasks more efficiently than checking each cycle of poll_one().
     
-    resend_configs();
+    resend_recorders();
 
     return 0;
   }
@@ -737,25 +739,27 @@ public:
 
   int setup_recorder(Recorder *recorder) override
   {
-    // Called when a new recorder has been created.
+    // Called when a recorder has been created or changes
 
-    this->send_recorder(recorder);
+    send_recorder(recorder);
     return 0;
   }
 
   int setup_system(System *system) override
   {
-    // Called when a new system has been created.
+    // Called after a system has been created.
 
-    this->send_system(system);
+    send_system(system);
+    send_systems(this->systems);
     return 0;
   }
 
   int setup_systems(std::vector<System *> systems) override
   {
     // Called during startup when the initial systems have been created.
+    // May not have NAC or other details until after setup_systems().
 
-    this->send_systems(systems);
+    send_systems(systems);
     return 0;
   }
 
@@ -764,22 +768,11 @@ public:
   // Helper functions
   // ********************************
 
-  int resend_configs()
+  int resend_recorders()
   {
     // Triggered by setup_config() every 3 seconds.
-    // The full list of system configs and systems normally sent only once on startup, and may be
-    // missed by MQTT clients.  The "refresh" option controls the interval they are resent.
 
-    time_t now_time = time(NULL);
-
-    if (((now_time - this->config_resend_time ) > refresh ) && (this->config_resend_time > 0))
-    {
-      send_config(this->sources, this->systems);
-      send_systems(this->systems);
-      this->config_resend_time = now_time;
-    }
-
-    // Recorders are updated every 3 seconds.
+    // Update recorders every 3 seconds.
     std::vector<Recorder *> recorders;
     for (std::vector<Source *>::iterator it = this->sources.begin(); it != this->sources.end(); ++it)
     {
@@ -931,9 +924,16 @@ public:
     }
   }
 
-  int send_object(boost::property_tree::ptree data, std::string name, std::string type, std::string object_topic)
+  int send_object(boost::property_tree::ptree data, std::string name, std::string type, std::string object_topic, bool retained)
   {
     // Send a MQTT message using the configured connection and paho libraries.
+    // send_object(
+    //    boost::property_tree::ptree data  <- payload,
+    //    std::string name                  <- subtopic,
+    //    std::string type                  <- message type,
+    //    std::string object_topic          <- topic,
+    //    bool retained                     <- retain message at the broker (config, system, etc.)
+    //    )
 
     // Ignore requests to send MQTT messages before the connection is opened
     if (m_open == false)
@@ -954,6 +954,7 @@ public:
       .topic(object_topic + "/" + type)
       .payload(payload_json.str())
       .qos(this->qos)
+      .retained(retained)
       .finalize();
     
     // Publish the MQTT message

@@ -55,7 +55,6 @@ __Plugin options:__
 | message_topic |          |               | string | Optional field to enable reporting of trunking messages over MQTT. |
 | username   |          |               | string | If a username is required for the broker, add it here. |
 | password   |          |               | string | If a password is required for the broker, add it here. |
-| refresh    |          |        60     | int    | Recorders and configs are normally only sent at startup, this sets the interval this information is refreshed. A value of -1 will disable. |
 | qos    |          |        0     | int    | Set the MQTT message [QOS level](https://www.eclipse.org/paho/files/mqttdoc/MQTTClient/html/qos.html) |
 
 __Trunk-Recorder options:__
@@ -77,7 +76,6 @@ See the included [config.json](./config.json) as an example of how to load this 
         "unit_topic": "robotastic/units",
         "username": "robotastic",
         "password": "",
-        "refresh": 30,
         "qos": 0
     }]
 ```
@@ -87,27 +85,28 @@ If the plugin cannot be found, or it is being run from a different location, it 
 ```
 
 ### MQTT Messages
-| Topic | Sub-Topic | Description |
-| ----- | ------- | ----------- |
-| topic | rates | Control channel decode rates |
-| topic | config | Trunk-recorder config information, sent at `refresh` interval  |
-| topic | systems | Configured systems, sent at `refresh` interval |
-| topic | calls_active | List of active calls, updated every 1 second|
-| topic | recorders | List of system recorders, updated every 3 seconds |
-| topic | recoders | Recorder status changes |
-| topic | call_start | New calls |
-| topic | call_end | Completed calls |
-| topic/trunk_recorder | `client_id` | Plugin status message, sent on startup or when the broker loses connection |
-| unit_topic/shortname | call | Channel grants |
-| unit_topic/shortname | end | Call end unit information\* |
-| unit_topic/shortname | on | Unit registration (radio on) |
-| unit_topic/shortname | off | Unit degregistration (radio off) |
-| unit_topic/shortname | ackresp | Unit acknowledge response |
-| unit_topic/shortname | join | Unit group affiliation |
-| unit_topic/shortname | data | Unit data grant |
-| unit_topic/shortname | ans_req | Unit answer request |
-| unit_topic/shortname | location | Unit location update |
-| message_topic/shortname | messages | Trunking messages |
+| Topic | Sub-Topic | Retained | Description |
+| ----- | --------- | -------- | ----------- |
+| topic | rates | no | Control channel decode rates |
+| topic | config | yes | Trunk-recorder config information  |
+| topic | systems | yes | Configured systems |
+| topic | system | no | System info, sent when configuration is complete|
+| topic | calls_active | no | List of active calls, updated every 1 second|
+| topic | recorders | no | List of system recorders, updated every 3 seconds |
+| topic | recorder | no | Recorder status changes |
+| topic | call_start | no | New calls |
+| topic | call_end | no | Completed calls |
+| topic/trunk_recorder | `client_id` | yes | Plugin status message, sent on startup or when the broker loses connection |
+| unit_topic/shortname | call | no | Channel grants |
+| unit_topic/shortname | end | no | Call end unit information\* |
+| unit_topic/shortname | on | no | Unit registration (radio on) |
+| unit_topic/shortname | off | no | Unit degregistration (radio off) |
+| unit_topic/shortname | ackresp | no | Unit acknowledge response |
+| unit_topic/shortname | join | no | Unit group affiliation |
+| unit_topic/shortname | data | no | Unit data grant |
+| unit_topic/shortname | ans_req | no | Unit answer request |
+| unit_topic/shortname | location | no | Unit location update |
+| message_topic/shortname | messages | no | Trunking messages |
 
 \*`end` is not a trunking message, but sent after trunk-recorder ends the call.  This can be used to track conventional non-trunked calls.
 
