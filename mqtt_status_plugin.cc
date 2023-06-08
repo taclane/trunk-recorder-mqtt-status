@@ -41,54 +41,72 @@ class Mqtt_Status : public Plugin_Api, public virtual mqtt::callback, public vir
 
   time_t call_resend_time = time(NULL);
 
-  std::map<std::string, int> system_map;
-
-  std::map<short, std::string> opcode_type = {
-      {0x00, "GRP_V_CH_GRANT"},
-      {0x02, "GRP_V_CH_GRANT_UPDT"},
-      {0x03, "GRP_V_CH_GRANT_UPDT_EXP"},
-      {0x04, "UU_V_CH_GRANT"},
-      {0x05, "UU_ANS_REQ"},
-      {0x06, "UU_V_CH_GRANT_UPDT"},
-      {0x08, "Telephone Interconnect Voice Channel Grant"},
-      {0x09, "Telephone Interconnect Voice Channel Grant Update"},
-      {0x0a, "Telephone Interconnect Answer Request"},
-      {0x14, "DATA_GRANT"},
-      {0x15, "SNDCP Data Page Request"},
-      {0x16, "SNDCP Data Channel Announcement -Explicit"},
-      {0x18, "Status Update"},
-      {0x1a, "Status Query"},
-      {0x1c, "Message Update"},
-      {0x1d, "Radio Unit Monitor Command"},
-      {0x1f, "Call Alert"},
-      {0x20, "Acknowledge Response"},
-      {0x21, "Extended Function Command"},
-      {0x24, "Extended Function Command"},
-      {0x27, "Deny Response"},
-      {0x28, "Unit Group Affiliation"},
-      {0x29, "Secondary Control Channel Broadcast - Explicit"},
-      {0x2a, "Group Affiliation Query"},
-      {0x2b, "Location Registration Response"},
-      {0x2c, "Unit Registration Response"},
-      {0x2d, "AUTHENTICATION COMMAND"},
-      {0x2e, "DE-REGISTRATION ACKNOWLEDGE"},
-      {0x2f, "Unit DeRegistration Ack"},
-      {0x30, "TDMA SYNCHRONIZATION BROADCAST / PATCH"},
-      {0x31, "AUTHENTICATION DEMAND"},
-      {0x32, "AUTHENTICATION RESPONSE"},
-      {0x33, "iden up tdma id"},
-      {0x34, "iden vhf/uhf id"},
-      {0x35, "Time and Date Announcement"},
-      {0x36, "ROAMING ADDRESS COMMAND"},
-      {0x37, "ROAMING ADDRESS UPDATE"},
-      {0x38, "SYSTEM SERVICE BROADCAST"},
-      {0x39, "secondary cc"},
-      {0x3a, "rfss status"},
-      {0x3b, "network status"},
-      {0x3c, "adjacent status"},
-      {0x3d, "iden_up"},
-      {0x3e, "P_PARM_BCST"},
-      {0xff, "** Unidentified"}};
+  std::map<short, std::vector<std::string>> opcode_type = {
+      {0x00, {"GRP_V_CH_GRANT", "Group Voice Channel Grant"}},
+      {0x01, {"RSVD_01", "Reserved 0x01"}},
+      {0x02, {"GRP_V_CH_GRANT_UPDT", "Group Voice Channel Grant Update"}},
+      {0x03, {"GRP_V_CH_GRANT_UPDT_EXP", "Group Voice Channel Update - Explicit"}},
+      {0x04, {"UU_V_CH_GRANT", "Unit To Unit Voice Channel Grant"}},
+      {0x05, {"UU_ANS_REQ", "Unit To Unit Answer Request"}},
+      {0x06, {"UU_V_CH_GRANT_UPDT", "Unit to Unit Voice Channel Grant Update"}},
+      {0x07, {"RSVD_07", "Reserved 0x07"}},
+      {0x08, {"TELE_INT_CH_GRANT", "Telephone Interconnect Voice Channel Grant"}},
+      {0x09, {"TELE_INT_CH_GRANT_UPDT", "Telephone Interconnect Voice Channel Grant Update"}},
+      {0x0a, {"TELE_INT_ANS_REQ", "Telephone Interconnect Answer Request"}},
+      {0x0b, {"RSVD_0B", "Reserved 0x0b"}},
+      {0x0c, {"RSVD_0C", "Reserved 0x0c"}},
+      {0x0d, {"RSVD_0D", "Reserved 0x0d"}},
+      {0x0e, {"RSVD_0E", "Reserved 0x0e"}},
+      {0x0f, {"RSVD_0F", "Reserved 0x0f"}},
+      {0x10, {"OBS_10", "Obsolete 0x10"}},
+      {0x11, {"OBS_11", "Obsolete 0x11"}},
+      {0x12, {"OBS_12", "Obsolete 0x12"}},
+      {0x13, {"OBS_13", "Obsolete 0x13"}},
+      {0x14, {"SN-DATA_CHN_GNT", "SNDCP Data Channel Grant"}},
+      {0x15, {"SN-DATA_PAGE_REQ", "SNDCP Data Page Request"}},
+      {0x16, {"SN-DATA_CHN_ANN_EXP", "SNDCP Data Channel Announcement - Explicit"}},
+      {0x17, {"RSVD_17", "Reserved 0x17"}},
+      {0x18, {"STS_UPDT", "Status Update"}},
+      {0x19, {"RSVD_19", "Reserved 0x19"}},
+      {0x1a, {"STS_Q", "Status Query"}},
+      {0x1b, {"RSVD_1B", "Reserved 0x1b"}},
+      {0x1c, {"MSG_UPDT", "Message Update"}},
+      {0x1d, {"RAD_MON_CMD", "Radio Unit Monitor Command"}},
+      {0x1e, {"RSVD_1E", "Reserved 0x1e"}},
+      {0x1f, {"CALL_ALRT", "Call Alert"}},
+      {0x20, {"ACK_RSP_FNE", "Acknowledge Response - FNE"}},
+      {0x21, {"QUE_RSP", "Queued Response"}},
+      {0x22, {"RSVD_22", "Reserved 0x22"}},
+      {0x23, {"RSVD_23", "Reserved 0x23"}},
+      {0x24, {"EXT_FNCT_CMD", "Extended Function Command"}},
+      {0x25, {"RSVD_25", "Reserved 0x25"}},
+      {0x26, {"RSVD_26", "Reserved 0x26"}},
+      {0x27, {"DENY_RSP", "Deny Response"}},
+      {0x28, {"GRP_AFF_RSP", "Group Affiliation Response"}},
+      {0x29, {"SCCB_EXP", "Secondary Control Channel Broadcast - Explicit"}},
+      {0x2a, {"GRP_AFF_Q", "Group Affiliation Query"}},
+      {0x2b, {"LOC_REG_RSP", "Location Registration Response"}},
+      {0x2c, {"U_REG_RSP", "Unit Registration Response"}},
+      {0x2d, {"U_REG_CMD", "Unit Registration Command"}},
+      {0x2e, {"AUTH_CMD", "Authentication Command"}},
+      {0x2f, {"U_DE_REG_ACK", "De-Registration Acknowledge"}},
+      {0x30, {"SYNC_BCST", "Sync Broadcast / Patch"}},
+      {0x31, {"AUTH_DMD", "Authentication Demand"}},
+      {0x32, {"AUTH_FNE_RESP", "Authentication FNE Response"}},
+      {0x33, {"IDEN_UP_TDMA", "Identifier Update for TDMA"}},
+      {0x34, {"IDEN_UP_VU", "Identifier Update for VHF/UHF Bands"}},
+      {0x35, {"TIME_DATE_ANN", "Time and Date Announcement"}},
+      {0x36, {"ROAM_ADDR_CMD", "Roaming Address Command"}},
+      {0x37, {"ROAM_ADDR_UPDT", "Roaming Address Update"}},
+      {0x38, {"SYS_SRV_BCST", "System Service Broadcast"}},
+      {0x39, {"SCCB", "Secondary Control Channel Broadcast"}},
+      {0x3a, {"RFSS_STS_BCST", "RFSS Status Broadcast"}},
+      {0x3b, {"NET_STS_BCST", "Network Status Broadcast"}},
+      {0x3c, {"ADJ_STS_BCST", "Adjacent Status Broadcast"}},
+      {0x3d, {"IDEN_UP", "Identifier Update"}},
+      {0x3e, {"P_PARM_BCST", "Protection Parameter Broadcast"}},
+      {0x3f, {"P_PARM_UPDT", "Protection Parameter Update"}},
+      {0xff, {"UNK", "Unidentified"}}};
 
   std::map<short, std::string> message_type = {
       {0, "GRANT"},
@@ -156,9 +174,10 @@ public:
         message_node.put("trunk_msg", message.message_type);
         message_node.put("trunk_msg_type", message_type[message.message_type]);
         message_node.put("opcode", int_to_hex(message.opcode, 2));
-        message_node.put("opcode_type", opcode_type[message.opcode]);
+        message_node.put("opcode_type", opcode_type[message.opcode][0]);
+        message_node.put("opcode_desc", opcode_type[message.opcode][1]);
 
-        send_object(message_node, "message", system->get_short_name().c_str(), this->message_topic, false);
+        return send_object(message_node, "message", system->get_short_name().c_str(), this->message_topic, false);
       }
     }
     return 0;
@@ -655,7 +674,7 @@ public:
 
       return send_object(unit_node, "on", "on", this->unit_topic + "/" + sys->get_short_name().c_str(), false);
     }
-    return 1;
+    return 0;
   }
 
   int unit_deregistration(System *sys, long source_id) override
@@ -677,7 +696,7 @@ public:
 
       return send_object(unit_node, "off", "off", this->unit_topic + "/" + sys->get_short_name().c_str(), false);
     }
-    return 1;
+    return 0;
   }
 
   int unit_acknowledge_response(System *sys, long source_id) override
@@ -699,7 +718,7 @@ public:
 
       return send_object(unit_node, "ackresp", "ackresp", this->unit_topic + "/" + sys->get_short_name().c_str(), false);
     }
-    return 1;
+    return 0;
   }
 
   int unit_group_affiliation(System *sys, long source_id, long talkgroup_num) override
@@ -729,7 +748,7 @@ public:
 
       return send_object(unit_node, "join", "join", this->unit_topic + "/" + sys->get_short_name().c_str(), false);
     }
-    return 1;
+    return 0;
   }
 
   int unit_data_grant(System *sys, long source_id) override
@@ -751,7 +770,7 @@ public:
 
       return send_object(unit_node, "data", "data", this->unit_topic + "/" + sys->get_short_name().c_str(), false);
     }
-    return 1;
+    return 0;
   }
 
   int unit_answer_request(System *sys, long source_id, long talkgroup) override
@@ -779,7 +798,7 @@ public:
 
       return send_object(unit_node, "ans_req", "ans_req", this->unit_topic + "/" + sys->get_short_name().c_str(), false);
     }
-    return 1;
+    return 0;
   }
 
   int unit_location(System *sys, long source_id, long talkgroup_num) override
@@ -808,7 +827,7 @@ public:
       unit_node.put("talkgroup_patches", patch_string);
       return send_object(unit_node, "location", "location", this->unit_topic + "/" + sys->get_short_name().c_str(), false);
     }
-    return 1;
+    return 0;
   }
 
   // ********************************
@@ -1101,7 +1120,7 @@ public:
       BOOST_LOG_TRIVIAL(error) << "MQTT Status Plugin - " << exc.what() << endl;
     }
 
-    return 1;
+    return 0;
   }
 
   // Paho mqtt::iaction_listeners.  Required, but not used.
