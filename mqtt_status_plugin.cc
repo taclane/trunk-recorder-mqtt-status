@@ -386,7 +386,8 @@ public:
 
     // MQTT: topic/calls_active
     //   Send the list of all active calls; use a pointer to allow
-    //   updates between the normal API calls
+    //   updates between the normal API calls.
+    //   Not all calls have recorder info
 
     // Reset a pointer to the active call list if needed later
     this->tr_calls = calls;
@@ -417,22 +418,16 @@ public:
         call_node.put("call_state_type", tr_state[stat_node.get<int>("state")]);
         call_node.put("mon_state", stat_node.get<std::string>("monState"));
         call_node.put("mon_state_type", mon_state[stat_node.get<int>("monState")]);
-
+        call_node.put("rec_num", stat_node.get<std::string>("recNum", ""));
+        call_node.put("src_num", stat_node.get<std::string>("srcNum", ""));
+        call_node.put("rec_state", stat_node.get<std::string>("recState", ""));
+        call_node.put("rec_state_type", tr_state[stat_node.get<int>("recState", -1)]);
         call_node.put("phase2", stat_node.get<std::string>("phase2"));
+        call_node.put("analog", stat_node.get<std::string>("analog", ""));
         call_node.put("conventional", stat_node.get<std::string>("conventional"));
         call_node.put("encrypted", stat_node.get<std::string>("encrypted"));
         call_node.put("emergency", stat_node.get<std::string>("emergency"));
         call_node.put("stop_time", stat_node.get<std::string>("stopTime"));
-
-        // Not all calls have recorder info
-        if (stat_node.count("recNum"))
-        {
-          call_node.put("rec_num", stat_node.get<std::string>("recNum"));
-          call_node.put("src_num", stat_node.get<std::string>("srcNum"));
-          call_node.put("rec_state", stat_node.get<std::string>("recState"));
-          call_node.put("rec_state_type", tr_state[stat_node.get<int>("recState")]);
-          call_node.put("analog", stat_node.get<std::string>("analog"));
-        }
 
         calls_node.push_back(std::make_pair("", call_node));
       }
@@ -503,6 +498,7 @@ public:
     //   Send information about a new call.
     // MQTT: unit_topic/shortname/call
     //   Send information on the unit initiating a new call.
+    //   Not all calls have recorder info.
 
     long talkgroup_num = call->get_talkgroup();
     long source_id = call->get_current_source_id();
@@ -545,22 +541,16 @@ public:
     call_node.put("call_state_type", tr_state[stat_node.get<int>("state")]);
     call_node.put("mon_state", stat_node.get<std::string>("monState"));
     call_node.put("mon_state_type", mon_state[stat_node.get<int>("monState")]);
-
+    call_node.put("rec_num", stat_node.get<std::string>("recNum", ""));
+    call_node.put("src_num", stat_node.get<std::string>("srcNum", ""));
+    call_node.put("rec_state", stat_node.get<std::string>("recState", ""));
+    call_node.put("rec_state_type", tr_state[stat_node.get<int>("recState", -1)]);
     call_node.put("phase2", stat_node.get<std::string>("phase2"));
+    call_node.put("analog", stat_node.get<std::string>("analog", ""));
     call_node.put("conventional", stat_node.get<std::string>("conventional"));
     call_node.put("encrypted", stat_node.get<std::string>("encrypted"));
     call_node.put("emergency", stat_node.get<std::string>("emergency"));
     call_node.put("stop_time", stat_node.get<std::string>("stopTime"));
-
-    // Not all calls have recorder info
-    if (stat_node.count("recNum"))
-    {
-      call_node.put("rec_num", stat_node.get<std::string>("recNum"));
-      call_node.put("src_num", stat_node.get<std::string>("srcNum"));
-      call_node.put("rec_state", stat_node.get<std::string>("recState"));
-      call_node.put("rec_state_type", tr_state[stat_node.get<int>("recState")]);
-      call_node.put("analog", stat_node.get<std::string>("analog"));
-    }
 
     return send_object(call_node, "call", "call_start", this->topic, false);
   }
@@ -639,19 +629,6 @@ public:
     call_node.put("talkgroup_patches", patch_string);
     call_node.put("audio_type", call_info.audio_type);
 
-    // call_node.put("status",call_info.status);
-    // call_node.put("transmission_list",call_info.transmission_list);
-    // call_node.put("upload_script",call_info.upload_script = sys->get_upload_script();
-    // call_node.put("audio_archive",call_info.audio_archive = sys->get_audio_archive();
-    // call_node.put("transmission_archive",call_info.transmission_archive = sys->get_transmission_archive();
-    // call_node.put("call_log",call_info.call_log = sys->get_call_log();
-    // call_node.put("compress_wav",call_info.compress_wav);
-    // call_node.put("talkgroup_display",call_info.talkgroup_display = call->get_talkgroup_display();
-    // call_info.min_transmissions_removed = 0;
-    // call_node.put("transmission_source_list",call_info.transmission_source_list);
-    // call_node.put("transmission_error_list",call_info.transmission_error_list);
-
-    // Some stats are rounded to prevent long/repeating floats
     return send_object(call_node, "call", "call_end", this->topic, false);
   }
 
