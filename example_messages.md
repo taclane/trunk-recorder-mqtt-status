@@ -246,8 +246,8 @@ Sent after a system is configured during trunk-recorder startup.
 ```json
 {
   "system": {
-    "id": "3",
-    "name": "p25trunk",
+    "sys_num": "3",
+    "sys_name": "p25trunk",
     "type": "p25",
     "sysid": "555",
     "wacn": "BBBBB",
