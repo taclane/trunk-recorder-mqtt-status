@@ -1,10 +1,9 @@
-# Trunk Recorder MQTT Status (and Units!) Plugin <!-- omit from toc --> 
+# Trunk Recorder MQTT Status (and Units!) Plugin <!-- omit from toc -->
 
-This is a plugin for Trunk Recorder that publish the current status over MQTT. External programs can use the MQTT messages to display what is going on.
+This is a plugin for Trunk Recorder that publish the current status over MQTT. External programs can use the MQTT messages to collect and display information on monitored systems.
 
 - [Install](#install)
 - [Configure](#configure)
-- [Plugin Usage Example](#plugin-usage-example)
 - [MQTT Messages](#mqtt-messages)
 - [Mosquitto MQTT Broker](#mosquitto-mqtt-broker)
 - [Docker](#docker)
@@ -15,7 +14,7 @@ This is a plugin for Trunk Recorder that publish the current status over MQTT. E
 
 2. **Install the Paho MQTT C & C++ Libraries**.
 
-- _Install Paho MQTT C_
+&emsp; _Install Paho MQTT C_
 
 ```bash
 git clone https://github.com/eclipse/paho.mqtt.c.git
@@ -26,7 +25,7 @@ sudo cmake --build build/ --target install
 sudo ldconfig
 ```
 
-- _Install Paho MQTT C++_
+&emsp; _Install Paho MQTT C++_
 
 ```bash
 git clone https://github.com/eclipse/paho.mqtt.cpp
@@ -37,13 +36,15 @@ sudo cmake --build build/ --target install
 sudo ldconfig
 ```
 
-- Alternatively, if your package manager provides recent Paho MQTT libraries:
+&emsp; Alternatively, if your package manager provides recent Paho MQTT libraries:
 
 ```bash
 sudo apt install libpaho-mqtt-dev libpaho-mqttpp-dev
 ```
 
-3. Build and install the plugin:
+3. **Build and install the plugin:**
+
+&emsp; Plugin repos should be cloned in a location other than the trunk-recorder source dir.
 
 ```bash
 mkdir build
@@ -51,6 +52,8 @@ cd build
 cmake ..
 sudo make install
 ```
+
+&emsp; **IMPORTANT NOTE:** To avoid SEGFAULTs or other errors, plugins should be rebuilt after every new release of trunk-recorder.
 
 ## Configure
 
@@ -69,13 +72,13 @@ sudo make install
 
 **Trunk-Recorder options:**
 
-| Key                          | Required | Default Value  | Type   | Description                                                                                |
-| ---------------------------- | :------: | -------------- | ------ | ------------------------------------------------------------------------------------------ |
+| Key                          | Required | Default Value               | Type   | Description                                                                                |
+| ---------------------------- | :------: | --------------------------- | ------ | ------------------------------------------------------------------------------------------ |
 | [instance_id](./config.json) |          | <nobr>trunk-recorder</nobr> | string | Append an `instance_id` key to identify the trunk-recorder instance sending MQTT messages. |
 
-## Plugin Usage Example
+**Plugin Usage:**
 
-See the included [config.json](./config.json) as an example of how to load this plugin.
+See the included [config.json](./config.json) for an example how to load this plugin.
 
 ```json
     "plugins": [
@@ -99,6 +102,8 @@ If the plugin cannot be found, or it is being run from a different location, it 
 ```
 
 ## MQTT Messages
+
+The plugin will provide the following messges to the MQTT broker depending on configured topics.
 
 | Topic                   | Sub-Topic                                          | Retained | Description\*                                                      |
 | ----------------------- | -------------------------------------------------- | :------: | ------------------------------------------------------------------ |
