@@ -1,3 +1,8 @@
+// MQTT Status and Unit Plugin for Trunk-Recorder
+// ********************************
+// Requires trunk-recorder 4.5; commit 17 MAY 2023 (5c07ef0) or later for trunk_message() API
+// ********************************
+
 #include <time.h>
 #include <vector>
 
@@ -160,7 +165,7 @@ public:
     //   Sent on each trunking message
 
     // MQTT: message_topic/short_name
-    //   Lay the groundwork for trunk_message!
+    //   Display an overview of recieved trunk messages.
 
     if ((this->message_enabled))
     {
@@ -177,7 +182,7 @@ public:
         message_node.put("opcode_type", opcode_type[message.opcode][0]);
         message_node.put("opcode_desc", opcode_type[message.opcode][1]);
 
-        return send_object(message_node, "message", system->get_short_name().c_str(), this->message_topic, false);
+        return send_object(message_node, "message", "message", this->message_topic + "/" + system->get_short_name().c_str(), false);
       }
     }
     return 0;
@@ -651,6 +656,7 @@ public:
 
       return send_object(unit_node, "on", "on", this->unit_topic + "/" + sys->get_short_name().c_str(), false);
     }
+
     return 0;
   }
 
@@ -673,6 +679,7 @@ public:
 
       return send_object(unit_node, "off", "off", this->unit_topic + "/" + sys->get_short_name().c_str(), false);
     }
+
     return 0;
   }
 
@@ -695,6 +702,7 @@ public:
 
       return send_object(unit_node, "ackresp", "ackresp", this->unit_topic + "/" + sys->get_short_name().c_str(), false);
     }
+
     return 0;
   }
 
@@ -725,6 +733,7 @@ public:
 
       return send_object(unit_node, "join", "join", this->unit_topic + "/" + sys->get_short_name().c_str(), false);
     }
+
     return 0;
   }
 
@@ -747,6 +756,7 @@ public:
 
       return send_object(unit_node, "data", "data", this->unit_topic + "/" + sys->get_short_name().c_str(), false);
     }
+
     return 0;
   }
 
@@ -775,6 +785,7 @@ public:
 
       return send_object(unit_node, "ans_req", "ans_req", this->unit_topic + "/" + sys->get_short_name().c_str(), false);
     }
+
     return 0;
   }
 
@@ -804,6 +815,7 @@ public:
       unit_node.put("talkgroup_patches", patch_string);
       return send_object(unit_node, "location", "location", this->unit_topic + "/" + sys->get_short_name().c_str(), false);
     }
+
     return 0;
   }
 
@@ -955,6 +967,7 @@ public:
     std::stringstream stream;
     stream << std::setfill('0') << std::uppercase << std::setw(places) << std::hex << num;
     std::string result(stream.str());
+    
     return result;
   }
 
@@ -965,6 +978,7 @@ public:
 
     char rounded[20];
     snprintf(rounded, sizeof(rounded), "%.2f", num);
+    
     return std::string(rounded);
   }
 
@@ -980,6 +994,7 @@ public:
         patch_string += ",";
       patch_string += std::to_string(TGID);
     }
+    
     return patch_string;
   }
 
