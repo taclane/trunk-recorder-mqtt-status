@@ -352,7 +352,8 @@ List of all recorders, updated every 3 seconds.
             "freq": "457750000",
             "count": "73",
             "rec_state": "4",
-            "rec_state_type": "IDLE"
+            "rec_state_type": "IDLE",
+            "squelched": "false"
         },
         {
             ...
@@ -372,6 +373,7 @@ recorders
   recNum -> rec_num
   state  -> rec_state
           + rec_state_type
+          + squelched
 ```
 
 ## recorder
@@ -391,7 +393,8 @@ Recorder status updates.
     "duration": "21182.10",
     "count": "3563",
     "rec_state": "4",
-    "rec_state_type": "IDLE"
+    "rec_state_type": "IDLE",
+    "squelched": "false"
   },
   "type": "recorder",
   "timestamp": "1686700173",
@@ -407,6 +410,7 @@ recorder
   recNum -> rec_num
   state  -> rec_state
           + rec_state_type
+          + squelched
 ```
 
 ## call_start
@@ -777,7 +781,8 @@ Unit answer request
     "sys_name": "p25trunk",
     "unit": "2048",
     "unit_alpha_tag": "",
-    "talkgroup": "12582912"
+    "talkgroup": "12582912",
+    "talkgroup_alpha_tag": ""
   },
   "type": "ans_req",
   "timestamp": "1686712433",
@@ -806,7 +811,7 @@ Unit location update
     "sys_num": "3",
     "sys_name": "p25trunk",
     "unit": "54126",
-    "unit_alpha": "FD Port. 126",
+    "unit_alpha_tag": "FD Port. 126",
     "talkgroup": "23507",
     "talkgroup_alpha_tag": "FD",
     "talkgroup_patches": ""
