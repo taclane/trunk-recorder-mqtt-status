@@ -126,11 +126,19 @@ find_package(OpenSSL REQUIRED)
 #find_package(CURL REQUIRED)
 find_package(eclipse-paho-mqtt-c REQUIRED)
 find_package(PahoMqttCpp REQUIRED)
-find_library(trunk-recorder NAMES trunk-recorder/libtrunk-recorder.a REQUIRED)
-
 set(PahoMqttC_LIBRARIES eclipse-paho-mqtt-c::paho-mqtt3as)
 set(PahoMqttCpp_LIBRARIES PahoMqttCpp::paho-mqttpp3)
-GET_FILENAME_COMPONENT(TRUNK-RECORDER_LIBRARIES "${trunk-recorder}" PATH)
+
+# Check if plugin is being compiled along with trunk-recorder, or by itself
+if (NOT TARGET trunk_recorder_library)
+    set(STANDALONE 1)
+    message(STATUS "Building STANDALONE TRUNK-RECORDER PLUGIN: ${PROJECT_NAME}")
+    find_library(trunk-recorder-library NAMES trunk-recorder/libtrunk-recorder.a REQUIRED)
+    GET_FILENAME_COMPONENT(TRUNK-RECORDER_LIBRARIES "${trunk-recorder}" PATH)
+else()
+    set(STANDALONE 0)
+    message(STATUS "Building BUNDLED TRUNK-RECORDER PLUGIN: ${PROJECT_NAME}")
+endif()
 
 ########################################################################
 # Setup boost
@@ -206,12 +214,9 @@ set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -pthread -Wno-narrowing -fvisibility=hid
 include(GNUInstallDirs)
 include_directories("/usr/local/include")
 
-add_library(mqtt_status_plugin
-MODULE
-  mqtt_status_plugin.cc
-)
+add_library(mqtt_status_plugin MODULE mqtt_status_plugin.cc)
 
-target_link_libraries(mqtt_status_plugin ${trunk-recorder} ssl crypto ${PahoMqttC_LIBRARIES} ${PahoMqttCpp_LIBRARIES} ${Boost_LIBRARIES} ${GNURADIO_PMT_LIBRARIES} ${GNURADIO_RUNTIME_LIBRARIES} ${GNURADIO_FILTER_LIBRARIES} ${GNURADIO_DIGITAL_LIBRARIES} ${GNURADIO_ANALOG_LIBRARIES} ${GNURADIO_AUDIO_LIBRARIES} ${GNURADIO_UHD_LIBRARIES} ${UHD_LIBRARIES} ${GNURADIO_BLOCKS_LIBRARIES} ${GNURADIO_OSMOSDR_LIBRARIES}  ${LIBOP25_REPEATER_LIBRARIES} gnuradio-op25_repeater)
+target_link_libraries(mqtt_status_plugin $<IF:${STANDALONE},${trunk-recorder},trunk_recorder_library>  ssl crypto ${PahoMqttC_LIBRARIES} ${PahoMqttCpp_LIBRARIES} ${Boost_LIBRARIES} ${GNURADIO_PMT_LIBRARIES} ${GNURADIO_RUNTIME_LIBRARIES} ${GNURADIO_FILTER_LIBRARIES} ${GNURADIO_DIGITAL_LIBRARIES} ${GNURADIO_ANALOG_LIBRARIES} ${GNURADIO_AUDIO_LIBRARIES} ${GNURADIO_UHD_LIBRARIES} ${UHD_LIBRARIES} ${GNURADIO_BLOCKS_LIBRARIES} ${GNURADIO_OSMOSDR_LIBRARIES}  ${LIBOP25_REPEATER_LIBRARIES} gnuradio-op25_repeater)
 
 if(NOT Gnuradio_VERSION VERSION_LESS "3.8")
     target_link_libraries(mqtt_status_plugin) 
