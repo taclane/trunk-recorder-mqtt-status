@@ -23,6 +23,8 @@
   - [location](#location)
 - [Trunking Messages](#trunking-messages)
   - [messages](#messages)
+- [Console Messages](#console-messages)
+  - [console](#console)
 
 # Status Messages
 
@@ -524,7 +526,7 @@ call
 
 Plugin status message, sent on startup or when the broker loses connection. The message is retained on the MQTT broker.
 
-`topic/trunk_recorder/tr-status`
+`topic/trunk_recorder/tr-status/status`
 
 ```json
 {
@@ -853,5 +855,26 @@ Overview of trunking messages that have been decoded.
   "type": "message",
   "timestamp": "1686712507",
   "instance_id": "east-antenna"
+}
+```
+
+# Console Messages
+
+## console
+
+Console log messages forwarded over MQTT.
+
+`topic/trunk_recorder//tr-status/console`
+
+```json
+{
+    "console": {
+        "time": "2023-08-07T12:07:06.327966",
+        "severity": "info",
+        "log_msg": "[sname]    143C    TG:      12300 (       Eastport FD Disp)    Freq: 771.581250 MHz    Rdio Scanner Upload Success - file size: 18175"
+    },
+    "type": "console",
+    "timestamp": "1691424426",
+    "instance_id": "east-antenna"
 }
 ```

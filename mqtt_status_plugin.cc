@@ -5,28 +5,33 @@
 
 #include <time.h>
 #include <vector>
-
-#include <trunk-recorder/source.h>
-#include <trunk-recorder/plugin_manager/plugin_api.h>
-#include <trunk-recorder/gr_blocks/decoder_wrapper.h>
-#include <boost/dll/alias.hpp> // for BOOST_DLL_ALIAS
-#include <boost/property_tree/json_parser.hpp>
-#include <boost/log/trivial.hpp>
-
 #include <iostream>
 #include <cstdlib>
 #include <string>
 #include <map>
 #include <cstring>
+#include <regex>
 #include <mqtt/client.h>
+#include <trunk-recorder/source.h>
+#include <trunk-recorder/plugin_manager/plugin_api.h>
+//#include <trunk-recorder/gr_blocks/decoder_wrapper.h>
+#include <boost/date_time/posix_time/posix_time.hpp> //time_formatters.hpp>
+#include <boost/dll/alias.hpp> // for BOOST_DLL_ALIAS
+#include <boost/property_tree/json_parser.hpp>
+#include <boost/log/trivial.hpp>
+#include <boost/log/expressions.hpp>
+#include <boost/log/sinks/sync_frontend.hpp>
+#include <boost/log/sinks/text_ostream_backend.hpp>
 
 using namespace std;
+namespace logging = boost::log;
 
-class Mqtt_Status : public Plugin_Api, public virtual mqtt::callback, public virtual mqtt::iaction_listener
+class Mqtt_Status : public Plugin_Api, public virtual mqtt::callback //, public virtual mqtt::iaction_listener
 {
   bool m_open = false;
   bool unit_enabled = false;
   bool message_enabled = false;
+  bool console_enabled = false;
   bool tr_calls_set = false;
 
   int qos;
@@ -41,7 +46,9 @@ class Mqtt_Status : public Plugin_Api, public virtual mqtt::callback, public vir
   std::string topic;
   std::string unit_topic;
   std::string message_topic;
+  std::string console_topic;
   std::string instance_id;
+  std::string log_prefix;
   mqtt::async_client *client;
 
   time_t call_resend_time = time(NULL);
@@ -152,12 +159,45 @@ class Mqtt_Status : public Plugin_Api, public virtual mqtt::callback, public vir
       {6, "DUPLICATE"},
       {7, "SUPERSEDED"}};
 
+private:
+  // Custom backend to send log messages to parent Mqtt_Status plugin
+  class MqttSinkBackend : public logging::sinks::text_ostream_backend
+  {
+  public:
+    explicit MqttSinkBackend(Mqtt_Status &parent) : parent_(parent) {}
+
+    void consume(logging::record_view const &rec, std::string const &formatted_message)
+    {
+      // Extract formatted_message, severity, and time from record
+      boost::property_tree::ptree console_node;
+      console_node.put("time", boost::posix_time::to_iso_extended_string(rec["TimeStamp"].extract<boost::posix_time::ptime>().get()));
+      console_node.put("severity", logging::trivial::to_string(rec["Severity"].extract<logging::trivial::severity_level>().get()));
+      console_node.put("log_msg", rec["Message"].extract<std::string>().get());
+      // Send console message to the parent MQTT plugin
+      parent_.console_message(console_node);
+    }
+
+  private:
+    Mqtt_Status &parent_;
+  };
+
 public:
   Mqtt_Status(){};
 
   // ********************************
   // trunk-recorder MQTT messages
   // ********************************
+
+  // console_message()
+  //   Send boost::log::trivial messages over MQTT.
+  //   MQTT: message_topic/status/trunk_recorder/client_id/console
+  void console_message(boost::property_tree::ptree console_node)
+  {
+    // Remove escape sequences before sending the log message
+    console_node.put("log_msg", strip_esc_seq(console_node.get<std::string>("log_msg")));
+
+    send_object(console_node, "console", "console", this->console_topic, false);
+  }
 
   // trunk_message()
   //   Display an overview of recieved trunk messages.
@@ -770,24 +810,27 @@ public:
   //   TRUNK-RECORDER PLUGIN API: Called before init(); parses the config information for this plugin.
   int parse_config(boost::property_tree::ptree &cfg) override
   {
+    this->log_prefix = "\t[MQTT Status]\t";
     this->mqtt_broker = cfg.get<std::string>("broker", "tcp://localhost:1883");
     this->client_id = cfg.get<std::string>("client_id", "tr-status");
     this->username = cfg.get<std::string>("username", "");
     this->password = cfg.get<std::string>("password", "");
     this->topic = cfg.get<std::string>("topic", "");
     this->qos = cfg.get<int>("qos", 0);
-
     this->unit_topic = cfg.get<std::string>("unit_topic", "");
+    this->message_topic = cfg.get<std::string>("message_topic", "");
+    this->console_enabled = cfg.get<bool>("console_logs", false);
+
     if (this->unit_topic != "")
       this->unit_enabled = true;
-    else
-      this->unit_topic = "[disabled]";
 
-    this->message_topic = cfg.get<std::string>("message_topic", "");
     if (this->message_topic != "")
       this->message_enabled = true;
+
+    if (this->console_enabled == true)
+      this->console_topic = this->topic + "/trunk_recorder/" + this->client_id;
     else
-      this->message_topic = "[disabled]";
+      this->console_topic = "";
 
     // Remove any trailing slashes from topics
     if (this->topic.back() == '/')
@@ -800,15 +843,15 @@ public:
       this->message_topic.erase(this->message_topic.size() - 1);
 
     // Print plugin startup info
-    BOOST_LOG_TRIVIAL(info) << " MQTT Status Plugin Broker: " << this->mqtt_broker;
-    BOOST_LOG_TRIVIAL(info) << " MQTT Status Plugin Client Name: " << this->client_id;
-    BOOST_LOG_TRIVIAL(info) << " MQTT Status Plugin Broker Username: " << this->username;
-    if (this->password != "")
-      BOOST_LOG_TRIVIAL(info) << " MQTT Status Plugin Broker Password: ********";
-    BOOST_LOG_TRIVIAL(info) << " MQTT Status Plugin Topic: " << this->topic;
-    BOOST_LOG_TRIVIAL(info) << " MQTT Unit Status Plugin Topic: " << this->unit_topic;
-    BOOST_LOG_TRIVIAL(info) << " MQTT Trunk Message Plugin Topic: " << this->message_topic;
-    BOOST_LOG_TRIVIAL(info) << " MQTT Status Plugin message QOS: " << this->qos;
+    BOOST_LOG_TRIVIAL(info) << log_prefix << "Broker:                 " << this->mqtt_broker;
+    BOOST_LOG_TRIVIAL(info) << log_prefix << "Username:               " << this->username;
+    BOOST_LOG_TRIVIAL(info) << log_prefix << "Password:               " << ((this->password == "") ? "[none]" : "********");
+    BOOST_LOG_TRIVIAL(info) << log_prefix << "Client Name:            " << this->client_id;
+    BOOST_LOG_TRIVIAL(info) << log_prefix << "Status Topic:           " << this->topic;
+    BOOST_LOG_TRIVIAL(info) << log_prefix << "Unit Topic:             " << ((this->unit_topic == "") ? "[disabled]" : this->unit_topic + "/shortname");
+    BOOST_LOG_TRIVIAL(info) << log_prefix << "Trunk Message Topic:    " << ((this->message_topic == "") ? "[disabled]" : this->message_topic + "/shortname");
+    BOOST_LOG_TRIVIAL(info) << log_prefix << "Console Message Topic:  " << ((this->console_topic == "") ? "[disabled]" : this->console_topic + "/console");
+    BOOST_LOG_TRIVIAL(info) << log_prefix << "MQTT QOS:               " << this->qos;
     return 0;
   }
 
@@ -816,7 +859,7 @@ public:
   //   TRUNK-RECORDER PLUGIN API: Plugin initialization; called after parse_config().
   int init(Config *config, std::vector<Source *> sources, std::vector<System *> systems) override
   {
-    frequency_format = config->frequency_format;
+    // frequency_format = config->frequency_format;
     this->instance_id = config->instance_id;
     if (this->instance_id == "")
       this->instance_id = "trunk-recorder";
@@ -832,11 +875,22 @@ public:
   //   TRUNK-RECORDER PLUGIN API: Called after trunk-recorder finishes setup and the plugin is initialized
   int start() override
   {
+    this->log_prefix = "[MQTT Status]\t";
     // Start the MQTT connection
     open_connection();
     // Send config and system MQTT messages
     send_config(this->sources, this->systems);
     setup_systems(this->systems);
+
+    // Setup custom logging sink for MQTT messages
+    if (this->console_enabled == true)
+    {
+      typedef logging::sinks::synchronous_sink<MqttSinkBackend> mqtt_sink_t;
+
+      boost::shared_ptr<mqtt_sink_t> mqtt_sink = boost::make_shared<mqtt_sink_t>(boost::make_shared<MqttSinkBackend>(*this));
+      logging::core::get()->add_sink(mqtt_sink);
+    }
+
     return 0;
   }
 
@@ -901,6 +955,15 @@ public:
     return result;
   }
 
+  // strip_esc_seq()
+  //   Strip the console escape sequences from a string, convert /t to spaces
+  std::string strip_esc_seq(const std::string &input)
+  {
+    std::regex escape_seq_regex("\u001B\\[[0-9;]+m");
+    std::regex tab_regex("\t");
+    return std::regex_replace(std::regex_replace(input, escape_seq_regex, ""), tab_regex, "    ");
+  }
+
   // round_to_str()
   //   Round a float to two decimal places and return it as as string.
   //   "position", "length", and "duration" are the usual offenders.
@@ -931,12 +994,14 @@ public:
 
   // open_connection()
   //   Open the connection to the destination MQTT server using paho libraries.
+  //   Send a status message on connect/disconnect.
+  //   MQTT: message_topic/status/trunk_recorder/client_id/status
   void open_connection()
   {
     // Set a connect/disconnect message between client and broker
     std::stringstream connect_json;
     std::stringstream lwt_json;
-    std::string status_topic = this->topic + "/trunk_recorder/" + this->client_id;
+    std::string status_topic = this->topic + "/trunk_recorder/" + this->client_id + "/status";
 
     boost::property_tree::ptree status;
     status.put("status", "connected");
@@ -973,7 +1038,7 @@ public:
     // Set user/pass if indicated
     if ((this->username != "") && (this->password != ""))
     {
-      BOOST_LOG_TRIVIAL(info) << " MQTT Status Plugin - \tSetting MQTT Broker username and password..." << endl;
+      BOOST_LOG_TRIVIAL(info) << log_prefix << "Setting MQTT Broker username and password..." << endl;
       connOpts.set_user_name(this->username);
       connOpts.set_password(this->password);
     }
@@ -982,17 +1047,17 @@ public:
     client = new mqtt::async_client(this->mqtt_broker, this->client_id, config->capture_dir + "/store");
     try
     {
-      BOOST_LOG_TRIVIAL(info) << " MQTT Status Plugin - \tConnecting...";
+      BOOST_LOG_TRIVIAL(info) << log_prefix << "Connecting...";
       mqtt::token_ptr conntok = client->connect(connOpts);
-      BOOST_LOG_TRIVIAL(info) << " MQTT Status Plugin - \tWaiting for the connection...";
+      BOOST_LOG_TRIVIAL(info) << log_prefix << "Waiting for the connection...";
       conntok->wait();
-      BOOST_LOG_TRIVIAL(info) << " MQTT Status Plugin - \t ...OK";
+      BOOST_LOG_TRIVIAL(info) << log_prefix << "OK";
       m_open = true;
       client->publish(conn_msg);
     }
     catch (const mqtt::exception &exc)
     {
-      BOOST_LOG_TRIVIAL(error) << exc.what() << endl;
+      BOOST_LOG_TRIVIAL(error) << log_prefix << exc.what() << endl;
     }
   }
 
@@ -1036,21 +1101,21 @@ public:
     }
     catch (const mqtt::exception &exc)
     {
-      BOOST_LOG_TRIVIAL(error) << "MQTT Status Plugin - " << exc.what() << endl;
+      BOOST_LOG_TRIVIAL(error) << log_prefix << exc.what() << endl;
     }
     return 0;
   }
 
-  // Paho mqtt::iaction_listeners.  Required, but not used.
-  void on_failure(const mqtt::token &tok) override{};
-  void on_success(const mqtt::token &tok) override{};
+  // Paho mqtt::iaction_listeners.  No longer used.
+  // void on_failure(const mqtt::token &tok) override{};
+  // void on_success(const mqtt::token &tok) override{};
 
   // Paho mqtt::callbacks.
   // connection_lost()
   //   Paho MQTT: This method is called if the connection to the broker is lost.
   void connection_lost(const string &cause) override
   {
-    BOOST_LOG_TRIVIAL(error) << "MQTT Status Plugin - Connection lost to: " << this->mqtt_broker << "/tcause: " << cause;
+    BOOST_LOG_TRIVIAL(error) << log_prefix << "Connection lost to: " << this->mqtt_broker << "/tcause: " << cause;
   }
 
   // ********************************
@@ -1060,8 +1125,7 @@ public:
   // Factory method
   static boost::shared_ptr<Mqtt_Status> create()
   {
-    return boost::shared_ptr<Mqtt_Status>(
-        new Mqtt_Status());
+    return boost::shared_ptr<Mqtt_Status>(new Mqtt_Status());
   }
 };
 
