@@ -14,14 +14,15 @@
 #include <mqtt/client.h>
 #include <trunk-recorder/source.h>
 #include <trunk-recorder/plugin_manager/plugin_api.h>
-//#include <trunk-recorder/gr_blocks/decoder_wrapper.h>
+// #include <trunk-recorder/gr_blocks/decoder_wrapper.h>
 #include <boost/date_time/posix_time/posix_time.hpp> //time_formatters.hpp>
-#include <boost/dll/alias.hpp> // for BOOST_DLL_ALIAS
+#include <boost/dll/alias.hpp>                       // for BOOST_DLL_ALIAS
 #include <boost/property_tree/json_parser.hpp>
 #include <boost/log/trivial.hpp>
 #include <boost/log/expressions.hpp>
 #include <boost/log/sinks/sync_frontend.hpp>
 #include <boost/log/sinks/text_ostream_backend.hpp>
+#include <boost/crc.hpp>
 
 using namespace std;
 namespace logging = boost::log;
@@ -190,7 +191,7 @@ public:
 
   // console_message()
   //   Send boost::log::trivial messages over MQTT.
-  //   MQTT: message_topic/status/trunk_recorder/client_id/console
+  //   MQTT: message_topic/status/trunk_recorder/console
   void console_message(boost::property_tree::ptree console_node)
   {
     // Remove escape sequences before sending the log message
@@ -812,14 +813,14 @@ public:
   {
     this->log_prefix = "\t[MQTT Status]\t";
     this->mqtt_broker = cfg.get<std::string>("broker", "tcp://localhost:1883");
-    this->client_id = cfg.get<std::string>("client_id", "tr-status");
     this->username = cfg.get<std::string>("username", "");
     this->password = cfg.get<std::string>("password", "");
     this->topic = cfg.get<std::string>("topic", "");
-    this->qos = cfg.get<int>("qos", 0);
     this->unit_topic = cfg.get<std::string>("unit_topic", "");
     this->message_topic = cfg.get<std::string>("message_topic", "");
     this->console_enabled = cfg.get<bool>("console_logs", false);
+    this->qos = cfg.get<int>("qos", 0);
+    this->client_id = cfg.get<std::string>("client_id", generate_client_id());
 
     if (this->unit_topic != "")
       this->unit_enabled = true;
@@ -828,9 +829,7 @@ public:
       this->message_enabled = true;
 
     if (this->console_enabled == true)
-      this->console_topic = this->topic + "/trunk_recorder/" + this->client_id;
-    else
-      this->console_topic = "";
+      this->console_topic = this->topic + "/trunk_recorder";
 
     // Remove any trailing slashes from topics
     if (this->topic.back() == '/')
@@ -850,7 +849,7 @@ public:
     BOOST_LOG_TRIVIAL(info) << log_prefix << "Status Topic:           " << this->topic;
     BOOST_LOG_TRIVIAL(info) << log_prefix << "Unit Topic:             " << ((this->unit_topic == "") ? "[disabled]" : this->unit_topic + "/shortname");
     BOOST_LOG_TRIVIAL(info) << log_prefix << "Trunk Message Topic:    " << ((this->message_topic == "") ? "[disabled]" : this->message_topic + "/shortname");
-    BOOST_LOG_TRIVIAL(info) << log_prefix << "Console Message Topic:  " << ((this->console_topic == "") ? "[disabled]" : this->console_topic + "/console");
+    BOOST_LOG_TRIVIAL(info) << log_prefix << "Console Message Topic:  " << ((this->console_enabled == false) ? "[disabled]" : this->console_topic + "/console");
     BOOST_LOG_TRIVIAL(info) << log_prefix << "MQTT QOS:               " << this->qos;
     return 0;
   }
@@ -955,6 +954,21 @@ public:
     return result;
   }
 
+  // generate_client_id()
+  //   Return a unique-enough client_id if not manually specified in the config
+  std::string generate_client_id()
+  {
+    std::string prefix = "tr-status-";
+    std::string time = this->topic + std::to_string(std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::system_clock::now().time_since_epoch()).count());
+    boost::crc_32_type time_crc;
+    time_crc.process_bytes(time.data(), time.length());
+
+    std::stringstream stream;
+    stream << prefix << std::hex << time_crc.checksum();
+    std::string result(stream.str());
+    return result;
+  }
+
   // strip_esc_seq()
   //   Strip the console escape sequences from a string, convert /t to spaces
   std::string strip_esc_seq(const std::string &input)
@@ -995,13 +1009,13 @@ public:
   // open_connection()
   //   Open the connection to the destination MQTT server using paho libraries.
   //   Send a status message on connect/disconnect.
-  //   MQTT: message_topic/status/trunk_recorder/client_id/status
+  //   MQTT: message_topic/status/trunk_recorder/status
   void open_connection()
   {
     // Set a connect/disconnect message between client and broker
     std::stringstream connect_json;
     std::stringstream lwt_json;
-    std::string status_topic = this->topic + "/trunk_recorder/" + this->client_id + "/status";
+    std::string status_topic = this->topic + "/trunk_recorder/status";
 
     boost::property_tree::ptree status;
     status.put("status", "connected");

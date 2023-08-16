@@ -61,14 +61,14 @@ sudo make install
 
 | Key           | Required | Default Value        | Type       | Description                                                                                                                                                                              |
 | ------------- | :------: | -------------------- | ---------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| client_id     |          | tr-status            | string     | Optional client id for this connection to the MQTT broker.                                                                                                                               |
 | broker        |    ✓     | tcp://localhost:1883 | string     | The URL for the MQTT Message Broker. It should include the protocol used: **tcp**, **ssl**, **ws**, **wss** and the port, which is generally 1883 for tcp, 8883 for ssl, and 443 for ws. |
-| topic         |    ✓     |                      | string     | This is the base MQTT topic. The plugin will create subtopics for the different types of status messages.                                                                                |
+| topic         |    ✓     |                      | string     | This is the base MQTT topic. The plugin will create subtopics for the different status messages.                                                                                |
 | unit_topic    |          |                      | string     | Optional topic to report unit stats over MQTT.                                                                                                                                           |
 | message_topic |          |                      | string     | Optional topic to report trunking messages over MQTT.                                                                                                                                    |
 | console_logs  |          | false                | true/false | Optional setting to report console messages over MQTT.                                                                                                                                   |
 | username      |          |                      | string     | If a username is required for the broker, add it here.                                                                                                                                   |
 | password      |          |                      | string     | If a password is required for the broker, add it here.                                                                                                                                   |
+| client_id     |          | tr-status-1234abcd   | string     | Override the pseudo-random client id use for this connection to the MQTT broker.                                                                                                         |
 | qos           |          | 0                    | int        | Set the MQTT message [QOS level](https://www.eclipse.org/paho/files/mqttdoc/MQTTClient/html/qos.html)                                                                                    |
 
 **Trunk-Recorder options:**
@@ -107,29 +107,29 @@ If the plugin cannot be found, or it is being run from a different location, it 
 
 The plugin will provide the following messges to the MQTT broker depending on configured topics.
 
-| Topic                          | Sub-Topic                                          | Retained | Description\*                                                      |
-| ------------------------------ | -------------------------------------------------- | :------: | ------------------------------------------------------------------ |
-| topic                          | [rates](./example_messages.md#rates)               |          | Control channel decode rates                                       |
-| topic                          | [config](./example_messages.md#config)             |    ✓     | Trunk-recorder config information                                  |
-| topic                          | [systems](./example_messages.md#systems)           |    ✓     | List of configured systems                                         |
-| topic                          | [system](./example_messages.md#system)             |          | System configuration/startup                                       |
-| topic                          | [calls_active](./example_messages.md#calls_active) |          | List of active calls, updated every second                         |
-| topic                          | [recorders](./example_messages.md#recorders)       |          | List of all recorders, updated every 3 seconds                     |
-| topic                          | [recorder](./example_messages.md#recorder)         |          | Recorder status changes                                            |
-| topic                          | [call_start](./example_messages.md#call_start)     |          | New call                                                           |
-| topic                          | [call_end](./example_messages.md#call_end)         |          | Completed call                                                     |
-| topic/trunk_recorder/client_id | [status](./example_messages.md#plugin_status)      |    ✓     | Plugin status, sent on startup or when the broker loses connection |
-| topic/trunk_recorder/client_id | [console](./example_messages.md#console_logs)      |          | Trunk-Recorder console logs mssages                                |
-| unit_topic/shortname           | [call](./example_messages.md#call)                 |          | Channel grants                                                     |
-| unit_topic/shortname           | [end](./example_messages.md#end)                   |          | Call end unit information\*\*                                      |
-| unit_topic/shortname           | [on](./example_messages.md#on)                     |          | Unit registration (radio on)                                       |
-| unit_topic/shortname           | [off](./example_messages.md#off)                   |          | Unit degregistration (radio off)                                   |
-| unit_topic/shortname           | [ackresp](./example_messages.md#ackresp)           |          | Unit acknowledge response                                          |
-| unit_topic/shortname           | [join](./example_messages.md#join)                 |          | Unit group affiliation                                             |
-| unit_topic/shortname           | [data](./example_messages.md#data)                 |          | Unit data grant                                                    |
-| unit_topic/shortname           | [ans_req](./example_messages.md#ans_req)           |          | Unit answer request                                                |
-| unit_topic/shortname           | [location](./example_messages.md#location)         |          | Unit location update                                               |
-| message_topic/shortname        | [messages](./example_messages.md#messages)         |          | Trunking messages                                                  |
+| Topic                   | Sub-Topic                                          | Retained | Description\*                                                      |
+| ----------------------- | -------------------------------------------------- | :------: | ------------------------------------------------------------------ |
+| topic                   | [rates](./example_messages.md#rates)               |          | Control channel decode rates                                       |
+| topic                   | [config](./example_messages.md#config)             |    ✓     | Trunk-recorder config information                                  |
+| topic                   | [systems](./example_messages.md#systems)           |    ✓     | List of configured systems                                         |
+| topic                   | [system](./example_messages.md#system)             |          | System configuration/startup                                       |
+| topic                   | [calls_active](./example_messages.md#calls_active) |          | List of active calls, updated every second                         |
+| topic                   | [recorders](./example_messages.md#recorders)       |          | List of all recorders, updated every 3 seconds                     |
+| topic                   | [recorder](./example_messages.md#recorder)         |          | Recorder status changes                                            |
+| topic                   | [call_start](./example_messages.md#call_start)     |          | New call                                                           |
+| topic                   | [call_end](./example_messages.md#call_end)         |          | Completed call                                                     |
+| topic/trunk_recorder    | [status](./example_messages.md#plugin_status)      |    ✓     | Plugin status, sent on startup or when the broker loses connection |
+| topic/trunk_recorder    | [console](./example_messages.md#console_logs)      |          | Trunk-Recorder console logs mssages                                |
+| unit_topic/shortname    | [call](./example_messages.md#call)                 |          | Channel grants                                                     |
+| unit_topic/shortname    | [end](./example_messages.md#end)                   |          | Call end unit information\*\*                                      |
+| unit_topic/shortname    | [on](./example_messages.md#on)                     |          | Unit registration (radio on)                                       |
+| unit_topic/shortname    | [off](./example_messages.md#off)                   |          | Unit degregistration (radio off)                                   |
+| unit_topic/shortname    | [ackresp](./example_messages.md#ackresp)           |          | Unit acknowledge response                                          |
+| unit_topic/shortname    | [join](./example_messages.md#join)                 |          | Unit group affiliation                                             |
+| unit_topic/shortname    | [data](./example_messages.md#data)                 |          | Unit data grant                                                    |
+| unit_topic/shortname    | [ans_req](./example_messages.md#ans_req)           |          | Unit answer request                                                |
+| unit_topic/shortname    | [location](./example_messages.md#location)         |          | Unit location update                                               |
+| message_topic/shortname | [messages](./example_messages.md#messages)         |          | Trunking messages                                                  |
 
 \* Some messages have been changed for consistency. Please see links for examples and notes.  
 \*\* `end` is not a trunking message, but sent after trunk-recorder ends the call. This can be used to track conventional non-trunked calls.

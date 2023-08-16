@@ -526,7 +526,7 @@ call
 
 Plugin status message, sent on startup or when the broker loses connection. The message is retained on the MQTT broker.
 
-`topic/trunk_recorder/tr-status/status`
+`topic/trunk_recorder/status`
 
 ```json
 {
@@ -864,7 +864,7 @@ Overview of trunking messages that have been decoded.
 
 Console log messages forwarded over MQTT.
 
-`topic/trunk_recorder//tr-status/console`
+`topic/trunk_recorder/console`
 
 ```json
 {
