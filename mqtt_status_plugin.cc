@@ -845,7 +845,7 @@ public:
     BOOST_LOG_TRIVIAL(info) << log_prefix << "Broker:                 " << this->mqtt_broker;
     BOOST_LOG_TRIVIAL(info) << log_prefix << "Username:               " << this->username;
     BOOST_LOG_TRIVIAL(info) << log_prefix << "Password:               " << ((this->password == "") ? "[none]" : "********");
-    BOOST_LOG_TRIVIAL(info) << log_prefix << "Client Name:            " << this->client_id;
+    BOOST_LOG_TRIVIAL(info) << log_prefix << "Client ID:              " << this->client_id;
     BOOST_LOG_TRIVIAL(info) << log_prefix << "Status Topic:           " << this->topic;
     BOOST_LOG_TRIVIAL(info) << log_prefix << "Unit Topic:             " << ((this->unit_topic == "") ? "[disabled]" : this->unit_topic + "/shortname");
     BOOST_LOG_TRIVIAL(info) << log_prefix << "Trunk Message Topic:    " << ((this->message_topic == "") ? "[disabled]" : this->message_topic + "/shortname");
