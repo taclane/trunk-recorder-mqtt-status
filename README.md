@@ -69,7 +69,7 @@ sudo make install
 | console_logs  |          | false                | true/false | Optional setting to report console messages over MQTT.                                                                                                                                   |
 | username      |          |                      | string     | If a username is required for the broker, add it here.                                                                                                                                   |
 | password      |          |                      | string     | If a password is required for the broker, add it here.                                                                                                                                   |
-| client_id     |          | tr-status-XXXXXXXX   | string     | Override the client_id generated for this connection to the MQTT broker.                                                                                                         |
+| client_id     |          | tr-status-xxxxxxxx   | string     | Override the client_id generated for this connection to the MQTT broker.                                                                                                                 |
 | qos           |          | 0                    | int        | Set the MQTT message [QOS level](https://www.eclipse.org/paho/files/mqttdoc/MQTTClient/html/qos.html)                                                                                    |
 
 **Trunk-Recorder options:**
@@ -142,26 +142,26 @@ Internally, Trunk Recorder uses several state definitions to manage call flows, 
 **call_state** / **rec_state**
 | State | State Type   | Description                                                                                                |
 | :---: | ------------ | ---------------------------------------------------------------------------------------------------------- |
-|   0   | `MONITORING` | Call: Active - No recorder is assigned (see `mon_state` table)                                             |
+|   0   | `MONITORING` | Call: Active - No recorder is assigned - See **mon_state** table                                               |
 |   1   | `RECORDING`  | Call: Active - Recorder is assigned<br>Recorder: Assigned to call [Recording] - Demodulating transmissions |
 |   2   | `INACTIVE`   | Recorder: Assigned to call [Disconnecting] - Detaching from source and demodulator                         |
 |   3   | `ACTIVE`     | Recorder: Assigned to call [Tuned] - Not recording yet                                                     |
 |   4   | `IDLE`       | Recorder: Assigned to call [Squelched] - Not recording, has not timed out                                  |
-|   6   | `STOPPED`    | Recorder: Not assigned to call - Returning to the `AVAILABLE` state                                        |
+|   6   | `STOPPED`    | Recorder: Not assigned to call - Returning to `AVAILABLE` state                                            |
 |   7   | `AVAILABLE`  | Recorder: Not assigned to call - Free for use                                                              |
 |   8   | `IGNORE`     | Recorder: Assigned to call [Ignoring] - Ending call after unexpected data on the voice channel             |
 
 **mon_state**
-| State | State Type    | Description                                                                                                                        |
-| :---: | ------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
-|   0   | `UNSPECIFIED` | Default state                                                                                                                      |
-|   1   | `UNKNOWN_TG`  | Not recording: `recordUnknown` is `false` and talkgroup is not found in the _talkgroup.csv_ \*not currently implemented            |
-|   2   | `IGNORED_TG`  | Not recording: Talkgroup has the priority `-1` set in the _talkgroup.csv_                                                          |
-|   3   | `NO_SOURCE`   | Not recording: No source exists for the requested voice frequency                                                                  |
-|   4   | `NO_RECORDER` | Not recording: No recorders are available or talkgroup priority is too low                                                         |
-|   5   | `ENCRYPTED`   | Not recording: Encryption indicated by trunking messages or the _talkgroup.csv_ mode field [`E`, `DE`, `TE`]                       |
-|   6   | `DUPLICATE`   | Not recording: [`multiSite`] This call is a duplicate of a prior call                                                              |
-|   7   | `SUPERSEDED`  | Not recording: [`multiSite`] This call is a duplicate of a subsequent call with a site precedence indicated in the _talkgroup.csv_ |
+| State | State Type    | Description                                                                                                                      |
+| :---: | ------------- | -------------------------------------------------------------------------------------------------------------------------------- |
+|   0   | `UNSPECIFIED` | Default state                                                                                                                    |
+|   1   | `UNKNOWN_TG`  | Not recording: `recordUnknown` is `false` and talkgroup is not found in the _talkgroup.csv_ (\*not currently implemented)        |
+|   2   | `IGNORED_TG`  | Not recording: Talkgroup has the ignore priority (`-1`) set in the _talkgroup.csv_                                               |
+|   3   | `NO_SOURCE`   | Not recording: No source exists for the requested voice frequency                                                                |
+|   4   | `NO_RECORDER` | Not recording: No recorders are available or talkgroup priority is too low                                                       |
+|   5   | `ENCRYPTED`   | Not recording: Encryption indicated by trunking messages or the _talkgroup.csv_ mode field (`E`,`DE`,`TE`)                       |
+|   6   | `DUPLICATE`   | Not recording: [multiSite] This call is a duplicate of a prior call                                                              |
+|   7   | `SUPERSEDED`  | Not recording: [multiSite] This call is a duplicate of a subsequent call with a site precedence indicated in the _talkgroup.csv_ |
 
 ## Mosquitto MQTT Broker
 
