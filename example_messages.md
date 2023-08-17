@@ -72,7 +72,7 @@ Conventional systems are omitted from rate reporting by the plugin.
 
 ## config
 
-Trunk-recorder souce and system config information. The message is retained on the MQTT broker.
+Trunk-recorder source and system config information. The message is retained on the MQTT broker.
 
 `topic/config`
 
@@ -180,7 +180,7 @@ config
     shortName       -> sys_name
     sysNum          -> sys_num
     uploadScript    -> upload_script
-    recordUnkown    -> record_unknown
+    recordUnknown   -> record_unknown
     callLog         -> call_log
     talkgroupsFile  -> talkgroups_file
   captureDir      -> capture_dir

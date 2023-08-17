@@ -5,12 +5,13 @@ This is a plugin for Trunk Recorder that publish the current status over MQTT. E
 - [Install](#install)
 - [Configure](#configure)
 - [MQTT Messages](#mqtt-messages)
+- [Trunk Recorder States](#trunk-recorder-states)
 - [Mosquitto MQTT Broker](#mosquitto-mqtt-broker)
 - [Docker](#docker)
 
 ## Install
 
-1. **Build and install the current version of Trunk Recorder** following these [instructions](https://github.com/robotastic/trunk-recorder/blob/master/docs/INSTALL-LINUX.md). Make sure you do a `sudo make install` at the end to install the Trunk Recorder binary and libaries systemwide. The plugin will be built against these libraries.
+1. **Build and install the current version of Trunk Recorder** following these [instructions](https://github.com/robotastic/trunk-recorder/blob/master/docs/INSTALL-LINUX.md). Make sure you do a `sudo make install` at the end to install the Trunk Recorder binary and libraries system-wide. The plugin will be built against these libraries.
 
 2. **Install the Paho MQTT C & C++ Libraries**.
 
@@ -62,13 +63,13 @@ sudo make install
 | Key           | Required | Default Value        | Type       | Description                                                                                                                                                                              |
 | ------------- | :------: | -------------------- | ---------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | broker        |    ✓     | tcp://localhost:1883 | string     | The URL for the MQTT Message Broker. It should include the protocol used: **tcp**, **ssl**, **ws**, **wss** and the port, which is generally 1883 for tcp, 8883 for ssl, and 443 for ws. |
-| topic         |    ✓     |                      | string     | This is the base MQTT topic. The plugin will create subtopics for the different status messages.                                                                                |
+| topic         |    ✓     |                      | string     | This is the base MQTT topic. The plugin will create subtopics for the different status messages.                                                                                         |
 | unit_topic    |          |                      | string     | Optional topic to report unit stats over MQTT.                                                                                                                                           |
 | message_topic |          |                      | string     | Optional topic to report trunking messages over MQTT.                                                                                                                                    |
 | console_logs  |          | false                | true/false | Optional setting to report console messages over MQTT.                                                                                                                                   |
 | username      |          |                      | string     | If a username is required for the broker, add it here.                                                                                                                                   |
 | password      |          |                      | string     | If a password is required for the broker, add it here.                                                                                                                                   |
-| client_id     |          | tr-status-1234abcd   | string     | Override the pseudo-random client id use for this connection to the MQTT broker.                                                                                                         |
+| client_id     |          | tr-status-XXXXXXXX   | string     | Override the client_id generated for this connection to the MQTT broker.                                                                                                         |
 | qos           |          | 0                    | int        | Set the MQTT message [QOS level](https://www.eclipse.org/paho/files/mqttdoc/MQTTClient/html/qos.html)                                                                                    |
 
 **Trunk-Recorder options:**
@@ -97,7 +98,7 @@ See the included [config.json](./config.json) for an example how to load this pl
     }]
 ```
 
-If the plugin cannot be found, or it is being run from a different location, it may be necesarry to supply the full path:
+If the plugin cannot be found, or it is being run from a different location, it may be necessary to supply the full path:
 
 ```json
         "library": "/usr/local/lib/trunk-recorder/libmqtt_status_plugin.so",
@@ -105,7 +106,7 @@ If the plugin cannot be found, or it is being run from a different location, it 
 
 ## MQTT Messages
 
-The plugin will provide the following messges to the MQTT broker depending on configured topics.
+The plugin will provide the following messages to the MQTT broker depending on configured topics.
 
 | Topic                   | Sub-Topic                                          | Retained | Description\*                                                      |
 | ----------------------- | -------------------------------------------------- | :------: | ------------------------------------------------------------------ |
@@ -119,11 +120,11 @@ The plugin will provide the following messges to the MQTT broker depending on co
 | topic                   | [call_start](./example_messages.md#call_start)     |          | New call                                                           |
 | topic                   | [call_end](./example_messages.md#call_end)         |          | Completed call                                                     |
 | topic/trunk_recorder    | [status](./example_messages.md#plugin_status)      |    ✓     | Plugin status, sent on startup or when the broker loses connection |
-| topic/trunk_recorder    | [console](./example_messages.md#console_logs)      |          | Trunk-Recorder console logs mssages                                |
+| topic/trunk_recorder    | [console](./example_messages.md#console_logs)      |          | Trunk-Recorder console log messages                                |
 | unit_topic/shortname    | [call](./example_messages.md#call)                 |          | Channel grants                                                     |
 | unit_topic/shortname    | [end](./example_messages.md#end)                   |          | Call end unit information\*\*                                      |
 | unit_topic/shortname    | [on](./example_messages.md#on)                     |          | Unit registration (radio on)                                       |
-| unit_topic/shortname    | [off](./example_messages.md#off)                   |          | Unit degregistration (radio off)                                   |
+| unit_topic/shortname    | [off](./example_messages.md#off)                   |          | Unit de-registration (radio off)                                   |
 | unit_topic/shortname    | [ackresp](./example_messages.md#ackresp)           |          | Unit acknowledge response                                          |
 | unit_topic/shortname    | [join](./example_messages.md#join)                 |          | Unit group affiliation                                             |
 | unit_topic/shortname    | [data](./example_messages.md#data)                 |          | Unit data grant                                                    |
@@ -133,6 +134,34 @@ The plugin will provide the following messges to the MQTT broker depending on co
 
 \* Some messages have been changed for consistency. Please see links for examples and notes.  
 \*\* `end` is not a trunking message, but sent after trunk-recorder ends the call. This can be used to track conventional non-trunked calls.
+
+## Trunk Recorder States
+
+Internally, Trunk Recorder uses several state definitions to manage call flows, recorder assignment, and demodulator operation. When applicable, the MQTT plugin will include this information in messages. Below are summaries of these states, but not all may appear in MQTT messages.
+
+**call_state** / **rec_state**
+| State | State Type   | Description                                                                                                |
+| :---: | ------------ | ---------------------------------------------------------------------------------------------------------- |
+|   0   | `MONITORING` | Call: Active - No recorder is assigned (see `mon_state` table)                                             |
+|   1   | `RECORDING`  | Call: Active - Recorder is assigned<br>Recorder: Assigned to call [Recording] - Demodulating transmissions |
+|   2   | `INACTIVE`   | Recorder: Assigned to call [Disconnecting] - Detaching from source and demodulator                         |
+|   3   | `ACTIVE`     | Recorder: Assigned to call [Tuned] - Not recording yet                                                     |
+|   4   | `IDLE`       | Recorder: Assigned to call [Squelched] - Not recording, has not timed out                                  |
+|   6   | `STOPPED`    | Recorder: Not assigned to call - Returning to the `AVAILABLE` state                                        |
+|   7   | `AVAILABLE`  | Recorder: Not assigned to call - Free for use                                                              |
+|   8   | `IGNORE`     | Recorder: Assigned to call [Ignoring] - Ending call after unexpected data on the voice channel             |
+
+**mon_state**
+| State | State Type    | Description                                                                                                                        |
+| :---: | ------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+|   0   | `UNSPECIFIED` | Default state                                                                                                                      |
+|   1   | `UNKNOWN_TG`  | Not recording: `recordUnknown` is `false` and talkgroup is not found in the _talkgroup.csv_ \*not currently implemented            |
+|   2   | `IGNORED_TG`  | Not recording: Talkgroup has the priority `-1` set in the _talkgroup.csv_                                                          |
+|   3   | `NO_SOURCE`   | Not recording: No source exists for the requested voice frequency                                                                  |
+|   4   | `NO_RECORDER` | Not recording: No recorders are available or talkgroup priority is too low                                                         |
+|   5   | `ENCRYPTED`   | Not recording: Encryption indicated by trunking messages or the _talkgroup.csv_ mode field [`E`, `DE`, `TE`]                       |
+|   6   | `DUPLICATE`   | Not recording: [`multiSite`] This call is a duplicate of a prior call                                                              |
+|   7   | `SUPERSEDED`  | Not recording: [`multiSite`] This call is a duplicate of a subsequent call with a site precedence indicated in the _talkgroup.csv_ |
 
 ## Mosquitto MQTT Broker
 
@@ -146,7 +175,7 @@ Starting it on a Mac:
 
 ## Docker
 
-The included Dockerfile will allow buliding a trunk-recorder docker image with this plugin included.
+The included Dockerfile will allow building a trunk-recorder docker image with this plugin included.
 
 `docker-compose` can be used to automate the build and deployment of this image. In the Docker compose file replace the image line with a build line pointing to the location where this repo has been cloned to.
 

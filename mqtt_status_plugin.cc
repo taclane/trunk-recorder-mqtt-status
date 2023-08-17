@@ -201,7 +201,7 @@ public:
   }
 
   // trunk_message()
-  //   Display an overview of recieved trunk messages.
+  //   Display an overview of received trunk messages.
   //   TRUNK-RECORDER PLUGIN API: Sent on each trunking message
   //   MQTT: message_topic/short_name
   int trunk_message(std::vector<TrunkMessage> messages, System *system) override
@@ -588,16 +588,16 @@ public:
     if (this->unit_enabled)
     {
       boost::property_tree::ptree end_node;
-      // source_list[] can be used to suppliment transmission_list[] info
+      // source_list[] can be used to supplement transmission_list[] info
       std::vector<Call_Source> source_list = call_info.transmission_source_list;
-      int transmision_num = 0;
+      int transmission_num = 0;
 
       BOOST_FOREACH (auto &transmission, call_info.transmission_list)
       {
         end_node.put("call_num", call_info.call_num);
         end_node.put("sys_name", call_info.short_name);
         end_node.put("unit", transmission.source);
-        end_node.put("unit_alpha_tag", source_list[transmision_num].tag);
+        end_node.put("unit_alpha_tag", source_list[transmission_num].tag);
         end_node.put("start_time", transmission.start_time);
         end_node.put("stop_time", transmission.stop_time);
         end_node.put("sample_count", transmission.sample_count);
@@ -607,17 +607,17 @@ public:
         end_node.put("length", round_to_str(transmission.length));
         end_node.put("transmission_filename", transmission.filename);
         end_node.put("call_filename", call_info.filename);
-        end_node.put("position", round_to_str(source_list[transmision_num].position));
+        end_node.put("position", round_to_str(source_list[transmission_num].position));
         end_node.put("talkgroup", call_info.talkgroup);
         end_node.put("talkgroup_alpha_tag", call_info.talkgroup_alpha_tag);
         end_node.put("talkgroup_description", call_info.talkgroup_description);
         end_node.put("talkgroup_group", call_info.talkgroup_group);
         end_node.put("talkgroup_patches", patch_string);
         end_node.put("encrypted", call_info.encrypted);
-        end_node.put("emergency", source_list[transmision_num].emergency);
-        end_node.put("signal_system", source_list[transmision_num].signal_system);
+        end_node.put("emergency", source_list[transmission_num].emergency);
+        end_node.put("signal_system", source_list[transmission_num].signal_system);
         send_object(end_node, "end", "end", this->unit_topic + "/" + call_info.short_name.c_str(), false);
-        transmision_num++;
+        transmission_num++;
       }
     }
     boost::property_tree::ptree call_node;
@@ -955,16 +955,16 @@ public:
   }
 
   // generate_client_id()
-  //   Return a unique-enough client_id if not manually specified in the config
+  //   Return a unique-enough client_id based on a simple crc of broker address and topic
   std::string generate_client_id()
   {
     std::string prefix = "tr-status-";
-    std::string time = this->topic + std::to_string(std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::system_clock::now().time_since_epoch()).count());
-    boost::crc_32_type time_crc;
-    time_crc.process_bytes(time.data(), time.length());
+    std::string info = this->mqtt_broker + "/" + this->topic;
+    boost::crc_32_type info_crc;
+    info_crc.process_bytes(info.data(), info.length());
 
     std::stringstream stream;
-    stream << prefix << std::hex << time_crc.checksum();
+    stream << prefix << std::hex << info_crc.checksum();
     std::string result(stream.str());
     return result;
   }
