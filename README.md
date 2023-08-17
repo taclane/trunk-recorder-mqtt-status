@@ -137,7 +137,7 @@ The plugin will provide the following messages to the MQTT broker depending on c
 
 ## Trunk Recorder States
 
-Internally, Trunk Recorder uses state definitions to manage call flows, recorder assignment, and demodulator operation. The MQTT plugin will include this information when possible. Below is a summary of these states, but not all may appear in MQTT messages.
+Trunk Recorder uses state definitions to manage call flows, recorder assignment, and demodulator operation. The MQTT plugin will include this information when possible. Below is a summary of these states, but not all may appear in MQTT messages.
 
 **call_state** / **rec_state**
 | State | State Type   | Description                                                                                                |
