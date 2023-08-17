@@ -159,7 +159,7 @@ Internally, Trunk Recorder uses several state definitions to manage call flows, 
 |   2   | `IGNORED_TG`  | Not recording: Talkgroup has the ignore priority (`-1`) set in the _talkgroup.csv_                                               |
 |   3   | `NO_SOURCE`   | Not recording: No source exists for the requested voice frequency                                                                |
 |   4   | `NO_RECORDER` | Not recording: No recorders are available or talkgroup priority is too low                                                       |
-|   5   | `ENCRYPTED`   | Not recording: Encryption indicated by trunking messages or the _talkgroup.csv_ mode field (`E`,`DE`,`TE`)                       |
+|   5   | `ENCRYPTED`   | Not recording: Encryption indicated by trunking messages or mode field (`E`,`DE`,`TE`) in the _talkgroup.csv_                    |
 |   6   | `DUPLICATE`   | Not recording: [multiSite] This call is a duplicate of a prior call                                                              |
 |   7   | `SUPERSEDED`  | Not recording: [multiSite] This call is a duplicate of a subsequent call with a site precedence indicated in the _talkgroup.csv_ |
 
