@@ -137,12 +137,12 @@ The plugin will provide the following messages to the MQTT broker depending on c
 
 ## Trunk Recorder States
 
-Internally, Trunk Recorder uses several state definitions to manage call flows, recorder assignment, and demodulator operation. When applicable, the MQTT plugin will include this information in messages. Below are summaries of these states, but not all may appear in MQTT messages.
+Internally, Trunk Recorder uses state definitions to manage call flows, recorder assignment, and demodulator operation. The MQTT plugin will include this information when possible. Below is a summary of these states, but not all may appear in MQTT messages.
 
 **call_state** / **rec_state**
 | State | State Type   | Description                                                                                                |
 | :---: | ------------ | ---------------------------------------------------------------------------------------------------------- |
-|   0   | `MONITORING` | Call: Active - No recorder is assigned - See **mon_state** table                                               |
+|   0   | `MONITORING` | Call: Active - No recorder is assigned - See **mon_state** table                                           |
 |   1   | `RECORDING`  | Call: Active - Recorder is assigned<br>Recorder: Assigned to call [Recording] - Demodulating transmissions |
 |   2   | `INACTIVE`   | Recorder: Assigned to call [Disconnecting] - Detaching from source and demodulator                         |
 |   3   | `ACTIVE`     | Recorder: Assigned to call [Tuned] - Not recording yet                                                     |
