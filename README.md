@@ -86,7 +86,6 @@ See the included [config.json](./config.json) for an example how to load this pl
     "plugins": [
     {
         "name": "MQTT Status",
-        "client_id": "tr_status",
         "library": "libmqtt_status_plugin.so",
         "broker": "tcp://io.adafruit.com:1883",
         "topic": "robotastic/feeds",
@@ -94,7 +93,6 @@ See the included [config.json](./config.json) for an example how to load this pl
         "username": "robotastic",
         "password": "",
         "console_logs": true,
-        "qos": 0
     }]
 ```
 
