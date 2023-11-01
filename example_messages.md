@@ -850,7 +850,8 @@ Overview of trunking messages that have been decoded.
     "trunk_msg_type": "CONTROL_CHANNEL",
     "opcode": "39",
     "opcode_type": "SCCB",
-    "opcode_desc": "Secondary Control Channel Broadcast"
+    "opcode_desc": "Secondary Control Channel Broadcast",
+    "meta": "tsbk39 secondary cc: rfid .... "
   },
   "type": "message",
   "timestamp": "1686712507",

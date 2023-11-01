@@ -220,6 +220,7 @@ public:
         message_node.put("opcode", int_to_hex(message.opcode, 2));
         message_node.put("opcode_type", opcode_type[message.opcode][0]);
         message_node.put("opcode_desc", opcode_type[message.opcode][1]);
+        message_node.put("meta", strip_esc_seq(message.meta));
 
         return send_object(message_node, "message", "message", this->message_topic + "/" + system->get_short_name().c_str(), false);
       }
