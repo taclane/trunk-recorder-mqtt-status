@@ -13,6 +13,7 @@
 #include <regex>
 #include <mqtt/client.h>
 #include <trunk-recorder/source.h>
+#include <trunk-recorder/json.hpp>
 #include <trunk-recorder/plugin_manager/plugin_api.h>
 // #include <trunk-recorder/gr_blocks/decoder_wrapper.h>
 #include <boost/date_time/posix_time/posix_time.hpp> //time_formatters.hpp>
@@ -810,18 +811,19 @@ public:
 
   // parse_config()
   //   TRUNK-RECORDER PLUGIN API: Called before init(); parses the config information for this plugin.
-  int parse_config(boost::property_tree::ptree &cfg) override
+  // int parse_config(boost::property_tree::ptree &cfg) override
+  int parse_config(json config_data)  override
   {
     this->log_prefix = "\t[MQTT Status]\t";
-    this->mqtt_broker = cfg.get<std::string>("broker", "tcp://localhost:1883");
-    this->username = cfg.get<std::string>("username", "");
-    this->password = cfg.get<std::string>("password", "");
-    this->topic = cfg.get<std::string>("topic", "");
-    this->unit_topic = cfg.get<std::string>("unit_topic", "");
-    this->message_topic = cfg.get<std::string>("message_topic", "");
-    this->console_enabled = cfg.get<bool>("console_logs", false);
-    this->qos = cfg.get<int>("qos", 0);
-    this->client_id = cfg.get<std::string>("client_id", generate_client_id());
+    this->mqtt_broker = config_data.value("broker", "tcp://localhost:1883");
+    this->username = config_data.value("username", "");
+    this->password = config_data.value("password", "");
+    this->topic = config_data.value("topic", "");
+    this->unit_topic = config_data.value("unit_topic", "");
+    this->message_topic = config_data.value("message_topic", "");
+    this->console_enabled = config_data.value("console_logs", false);
+    this->qos = config_data.value("qos", 0);
+    this->client_id = config_data.value("client_id", generate_client_id());
 
     if (this->unit_topic != "")
       this->unit_enabled = true;
