@@ -1,6 +1,6 @@
 // MQTT Status and Unit Plugin for Trunk-Recorder
 // ********************************
-// Requires trunk-recorder 4.5; commit 17 MAY 2023 (5c07ef0) or later for trunk_message() API
+// Requires trunk-recorder 4.7 or later and Paho MQTT libraries
 // ********************************
 
 #include <time.h>
@@ -15,7 +15,6 @@
 #include <trunk-recorder/source.h>
 #include <trunk-recorder/json.hpp>
 #include <trunk-recorder/plugin_manager/plugin_api.h>
-// #include <trunk-recorder/gr_blocks/decoder_wrapper.h>
 #include <boost/date_time/posix_time/posix_time.hpp> //time_formatters.hpp>
 #include <boost/dll/alias.hpp>                       // for BOOST_DLL_ALIAS
 #include <boost/property_tree/json_parser.hpp>
@@ -28,7 +27,7 @@
 using namespace std;
 namespace logging = boost::log;
 
-class Mqtt_Status : public Plugin_Api, public virtual mqtt::callback //, public virtual mqtt::iaction_listener
+class Mqtt_Status : public Plugin_Api, public virtual mqtt::callback
 {
   bool m_open = false;
   bool unit_enabled = false;
@@ -171,12 +170,11 @@ private:
     void consume(logging::record_view const &rec, std::string const &formatted_message)
     {
       // Extract formatted_message, severity, and time from record
-      boost::property_tree::ptree console_node;
-      console_node.put("time", boost::posix_time::to_iso_extended_string(rec["TimeStamp"].extract<boost::posix_time::ptime>().get()));
-      console_node.put("severity", logging::trivial::to_string(rec["Severity"].extract<logging::trivial::severity_level>().get()));
-      console_node.put("log_msg", rec["Message"].extract<std::string>().get());
-      // Send console message to the parent MQTT plugin
-      parent_.console_message(console_node);
+      nlohmann::ordered_json console_json = {
+          {"time", boost::posix_time::to_iso_extended_string(rec["TimeStamp"].extract<boost::posix_time::ptime>().get())},
+          {"severity", logging::trivial::to_string(rec["Severity"].extract<logging::trivial::severity_level>().get())},
+          {"log_msg", rec["Message"].extract<std::string>().get()}};
+      parent_.console_message(console_json);
     }
 
   private:
@@ -193,12 +191,11 @@ public:
   // console_message()
   //   Send boost::log::trivial messages over MQTT.
   //   MQTT: message_topic/status/trunk_recorder/console
-  void console_message(boost::property_tree::ptree console_node)
+  void console_message(nlohmann::ordered_json console_json)
   {
     // Remove escape sequences before sending the log message
-    console_node.put("log_msg", strip_esc_seq(console_node.get<std::string>("log_msg")));
-
-    send_object(console_node, "console", "console", this->console_topic, false);
+    console_json["log_msg"] = strip_esc_seq(console_json["log_msg"]);
+    send_json(console_json, "console", "console", this->console_topic, false);
   }
 
   // trunk_message()
@@ -212,18 +209,17 @@ public:
       for (std::vector<TrunkMessage>::iterator it = messages.begin(); it != messages.end(); it++)
       {
         TrunkMessage message = *it;
-        boost::property_tree::ptree message_node;
 
-        message_node.put("sys_num", system->get_sys_num());
-        message_node.put("sys_name", system->get_short_name());
-        message_node.put("trunk_msg", message.message_type);
-        message_node.put("trunk_msg_type", message_type[message.message_type]);
-        message_node.put("opcode", int_to_hex(message.opcode, 2));
-        message_node.put("opcode_type", opcode_type[message.opcode][0]);
-        message_node.put("opcode_desc", opcode_type[message.opcode][1]);
-        message_node.put("meta", strip_esc_seq(message.meta));
-
-        return send_object(message_node, "message", "message", this->message_topic + "/" + system->get_short_name().c_str(), false);
+        nlohmann::ordered_json message_json = {
+            {"sys_num", system->get_sys_num()},
+            {"sys_name", system->get_short_name()},
+            {"trunk_msg", message.message_type},
+            {"trunk_msg_type", message_type[message.message_type]},
+            {"opcode", int_to_hex(message.opcode, 2)},
+            {"opcode_type", opcode_type[message.opcode][0]},
+            {"opcode_desc", opcode_type[message.opcode][1]},
+            {"meta", strip_esc_seq(message.meta)}};
+        return send_json(message_json, "message", "message", this->message_topic + "/" + system->get_short_name().c_str(), false);
       }
     }
     return 0;
@@ -235,7 +231,7 @@ public:
   //   MQTT: topic/rates
   int system_rates(std::vector<System *> systems, float timeDiff) override
   {
-    boost::property_tree::ptree systems_node;
+    nlohmann::ordered_json system_json;
 
     for (std::vector<System *>::iterator it = systems.begin(); it != systems.end(); ++it)
     {
@@ -247,17 +243,15 @@ public:
       if (sys_type.find("conventional") == std::string::npos)
       {
         boost::property_tree::ptree stat_node = system->get_stats_current(timeDiff);
-        boost::property_tree::ptree system_node;
-
-        system_node.put("sys_num", stat_node.get<std::string>("id"));
-        system_node.put("sys_name", system->get_short_name());
-        system_node.put("decoderate", round_to_str(stat_node.get<double>("decoderate")));
-        system_node.put("decoderate_interval", timeDiff);
-        system_node.put("control_channel", system->get_current_control_channel());
-        systems_node.push_back(std::make_pair("", system_node));
+        system_json += {
+            {"sys_num", stat_node.get<int>("id")},
+            {"sys_name", system->get_short_name()},
+            {"decoderate", round_float(stat_node.get<double>("decoderate"))},
+            {"decoderate_interval", timeDiff},
+            {"control_channel", system->get_current_control_channel()}};
       }
     }
-    return send_object(systems_node, "rates", "rates", this->topic, false);
+    return send_json(system_json, "rates", "rates", this->topic, false);
   }
 
   // send_config()
@@ -266,105 +260,92 @@ public:
   //     retained = true; Message will be kept at the MQTT broker to avoid the need to resend.
   int send_config(std::vector<Source *> sources, std::vector<System *> systems)
   {
-    boost::property_tree::ptree root;
-    boost::property_tree::ptree systems_node;
-    boost::property_tree::ptree sources_node;
+    nlohmann::ordered_json config_json;
 
     for (std::vector<Source *>::iterator it = sources.begin(); it != sources.end(); ++it)
     {
       Source *source = *it;
-      std::vector<Gain_Stage_t> gain_stages;
-      boost::property_tree::ptree source_node;
-      source_node.put("source_num", source->get_num());
-      source_node.put("rate", source->get_rate());
-      source_node.put("center", source->get_center());
-      source_node.put("min_hz", source->get_min_hz());
-      source_node.put("max_hz", source->get_max_hz());
-      source_node.put("error", source->get_error());
-      source_node.put("driver", source->get_driver());
-      source_node.put("device", source->get_device());
-      source_node.put("antenna", source->get_antenna());
-      source_node.put("gain", source->get_gain());
-      gain_stages = source->get_gain_stages();
+      json gain_stages_json;
+      std::vector<Gain_Stage_t> gain_stages = source->get_gain_stages();
+
       for (std::vector<Gain_Stage_t>::iterator gain_it = gain_stages.begin(); gain_it != gain_stages.end(); ++gain_it)
       {
-        source_node.put(gain_it->stage_name + "_gain", gain_it->value);
+        gain_stages_json += {gain_it->stage_name + "_gain", gain_it->value};
       }
-      source_node.put("analog_recorders", source->analog_recorder_count());
-      source_node.put("digital_recorders", source->digital_recorder_count());
-      source_node.put("debug_recorders", source->debug_recorder_count());
-      source_node.put("sigmf_recorders", source->sigmf_recorder_count());
-      source_node.put("silence_frames", source->get_silence_frames());
-      sources_node.push_back(std::make_pair("", source_node));
+
+      config_json["sources"] += {
+          {"source_num", source->get_num()},
+          {"rate", source->get_rate()},
+          {"center", source->get_center()},
+          {"min_hz", source->get_min_hz()},
+          {"max_hz", source->get_max_hz()},
+          {"error", source->get_error()},
+          {"driver", source->get_driver()},
+          {"device", source->get_device()},
+          {"antenna", source->get_antenna()},
+          {"gain", source->get_gain()},
+          {"gain_stages", gain_stages_json},
+          {"analog_recorders", source->analog_recorder_count()},
+          {"digital_recorders", source->digital_recorder_count()},
+          {"debug_recorders", source->debug_recorder_count()},
+          {"sigmf_recorders", source->sigmf_recorder_count()},
+          {"silence_frames", source->get_silence_frames()},
+      };
     }
 
     for (std::vector<System *>::iterator it = systems.begin(); it != systems.end(); ++it)
     {
       System *sys = (System *)*it;
 
-      boost::property_tree::ptree sys_node;
-      boost::property_tree::ptree channels_node;
-      sys_node.put("sys_num", sys->get_sys_num());
-      sys_node.put("sys_name", sys->get_short_name());
-      sys_node.put("system_type", sys->get_system_type());
-      sys_node.put("talkgroups_file", sys->get_talkgroups_file());
-      sys_node.put("qpsk", sys->get_qpsk_mod());
-      sys_node.put("squelch_db", sys->get_squelch_db());
-      sys_node.put("analog_levels", sys->get_analog_levels());
-      sys_node.put("digital_levels", sys->get_digital_levels());
-      sys_node.put("audio_archive", sys->get_audio_archive());
-      sys_node.put("upload_script", sys->get_upload_script());
-      sys_node.put("record_unkown", sys->get_record_unknown());
-      sys_node.put("call_log", sys->get_call_log());
+      nlohmann::ordered_json system_json = {
+          {"sys_num", sys->get_sys_num()},
+          {"sys_name", sys->get_short_name()},
+          {"system_type", sys->get_system_type()},
+          {"talkgroups_file", sys->get_talkgroups_file()},
+          {"qpsk", sys->get_qpsk_mod()},
+          {"squelch_db", sys->get_squelch_db()},
+          {"analog_levels", sys->get_analog_levels()},
+          {"digital_levels", sys->get_digital_levels()},
+          {"audio_archive", sys->get_audio_archive()},
+          {"upload_script", sys->get_upload_script()},
+          {"record_unkown", sys->get_record_unknown()},
+          {"call_log", sys->get_call_log()}};
 
-      std::vector<double> channels;
       if ((sys->get_system_type() == "conventional") || (sys->get_system_type() == "conventionalP25"))
       {
-        channels = sys->get_channels();
+        system_json["channels"] = sys->get_channels();
       }
       else
       {
-        channels = sys->get_control_channels();
-        sys_node.put("control_channel", sys->get_current_control_channel());
+        system_json["control_channel"] = sys->get_current_control_channel();
+        system_json["channels"] = sys->get_control_channels();
       }
-
-      for (std::vector<double>::iterator chan_it = channels.begin(); chan_it != channels.end(); ++chan_it)
-      {
-        double channel = *chan_it;
-        boost::property_tree::ptree channel_node;
-        channel_node.put("", channel);
-        channels_node.push_back(std::make_pair("", channel_node));
-      }
-      sys_node.add_child("channels", channels_node);
 
       if (sys->get_system_type() == "smartnet")
       {
-        sys_node.put("bandplan", sys->get_bandplan());
-        sys_node.put("bandfreq", sys->get_bandfreq());
-        sys_node.put("bandplan_base", sys->get_bandplan_base());
-        sys_node.put("bandplan_high", sys->get_bandplan_high());
-        sys_node.put("bandplan_spacing", sys->get_bandplan_spacing());
-        sys_node.put("bandplan_offset", sys->get_bandplan_offset());
-      }
-      systems_node.push_back(std::make_pair("", sys_node));
+        system_json["bandplan"] = sys->get_bandplan();
+        system_json["bandfreq"] = sys->get_bandfreq();
+        system_json["bandplan_base"] = sys->get_bandplan_base();
+        system_json["bandplan_high"] = sys->get_bandplan_high();
+        system_json["bandplan_spacing"] = sys->get_bandplan_spacing();
+        system_json["bandplan_offset"] = sys->get_bandplan_offset();
+      };
+
+      config_json["systems"] += system_json;
     }
-    root.add_child("sources", sources_node);
-    root.add_child("systems", systems_node);
-    root.put("capture_dir", this->config->capture_dir);
-    root.put("upload_server", this->config->upload_server);
 
-    // root.put("defaultMode", default_mode);
-    root.put("call_timeout", this->config->call_timeout);
-    root.put("log_file", this->config->log_file);
-    root.put("instance_id", this->config->instance_id);
-    root.put("instance_key", this->config->instance_key);
-    root.put("log_file", this->config->log_file);
-
+    config_json["capture_dir"] = this->config->capture_dir;
+    config_json["upload_server"] = this->config->upload_server;
+    config_json["call_timeout"] = this->config->call_timeout;
+    config_json["log_file"] = this->config->log_file;
+    config_json["instance_id"] = this->config->instance_id;
+    config_json["instance_key"] = this->config->instance_key;
     if (this->config->broadcast_signals == true)
     {
-      root.put("broadcast_signals", this->config->broadcast_signals);
+      config_json["broadcast_signals"] = this->config->broadcast_signals;
     }
-    return send_object(root, "config", "config", this->topic, true);
+
+    return send_json(config_json, "config", "config", this->topic, true);
   }
 
   // setup_systems()
@@ -374,23 +355,23 @@ public:
   //     retained = true; Message will be kept at the MQTT broker to avoid the need to resend.
   int setup_systems(std::vector<System *> systems) override
   {
-    boost::property_tree::ptree systems_node;
+    nlohmann::ordered_json systems_json;
 
     for (std::vector<System *>::iterator it = systems.begin(); it != systems.end(); ++it)
     {
       System *system = *it;
-      boost::property_tree::ptree system_node;
       boost::property_tree::ptree stat_node = system->get_stats();
-
-      system_node.put("sys_num", stat_node.get<std::string>("id"));
-      system_node.put("sys_name", stat_node.get<std::string>("name"));
-      system_node.put("type", stat_node.get<std::string>("type"));
-      system_node.put("sysid", int_to_hex(stat_node.get<int>("sysid"), 0));
-      system_node.put("wacn", int_to_hex(stat_node.get<int>("wacn"), 0));
-      system_node.put("nac", int_to_hex(stat_node.get<int>("nac"), 0));
-      systems_node.push_back(std::make_pair("", system_node));
+      systems_json += {
+          {"sys_num", stat_node.get<int>("id")},
+          {"sys_name", stat_node.get<std::string>("name")},
+          {"type", stat_node.get<std::string>("type")},
+          {"sysid", int_to_hex(stat_node.get<int>("sysid"), 0)},
+          {"wacn", int_to_hex(stat_node.get<int>("wacn"), 0)},
+          {"nac", int_to_hex(stat_node.get<int>("nac"), 0)},
+          {"rfss", system->get_sys_rfss()},
+          {"site_id", system->get_sys_site_id()}};
     }
-    return send_object(systems_node, "systems", "systems", this->topic, true);
+    return send_json(systems_json, "systems", "systems", this->topic, true);
   }
 
   // setup_system()
@@ -399,19 +380,19 @@ public:
   //   MQTT: topic/system
   int setup_system(System *system) override
   {
-    boost::property_tree::ptree system_node;
     boost::property_tree::ptree stat_node = system->get_stats();
-
-    system_node.put("sys_num", stat_node.get<std::string>("id"));
-    system_node.put("sys_name", stat_node.get<std::string>("name"));
-    system_node.put("type", stat_node.get<std::string>("type"));
-    system_node.put("sysid", int_to_hex(stat_node.get<int>("sysid"), 0));
-    system_node.put("wacn", int_to_hex(stat_node.get<int>("wacn"), 0));
-    system_node.put("nac", int_to_hex(stat_node.get<int>("nac"), 0));
-
+    nlohmann::ordered_json system_json = {
+        {"sys_num", stat_node.get<int>("id")},
+        {"sys_name", stat_node.get<std::string>("name")},
+        {"type", stat_node.get<std::string>("type")},
+        {"sysid", int_to_hex(stat_node.get<int>("sysid"), 0)},
+        {"wacn", int_to_hex(stat_node.get<int>("wacn"), 0)},
+        {"nac", int_to_hex(stat_node.get<int>("nac"), 0)},
+        {"rfss", system->get_sys_rfss()},
+        {"site_id", system->get_sys_site_id()}};
     // Resend the full system list with each update
     setup_systems(this->systems);
-    return send_object(system_node, "system", "system", this->topic, false);
+    return send_json(system_json, "system", "system", this->topic, false);
   }
 
   // calls_active()
@@ -425,7 +406,7 @@ public:
     this->tr_calls = calls;
     this->tr_calls_set = true;
 
-    boost::property_tree::ptree calls_node;
+    nlohmann::ordered_json calls_json;
 
     for (std::vector<Call *>::iterator it = calls.begin(); it != calls.end(); ++it)
     {
@@ -433,37 +414,35 @@ public:
       if ((call->get_current_length() > 0) || (!call->is_conventional()))
       {
         boost::property_tree::ptree stat_node = call->get_stats();
-        boost::property_tree::ptree call_node;
-
-        call_node.put("id", stat_node.get<std::string>("id"));
-        call_node.put("call_num", stat_node.get<std::string>("callNum"));
-        call_node.put("freq", stat_node.get<std::string>("freq"));
-        call_node.put("sys_num", stat_node.get<std::string>("sysNum"));
-        call_node.put("sys_name", stat_node.get<std::string>("shortName"));
-        call_node.put("talkgroup", stat_node.get<std::string>("talkgroup"));
-        call_node.put("talkgroup_alpha_tag", stat_node.get<std::string>("talkgrouptag"));
-        call_node.put("unit", stat_node.get<std::string>("srcId"));
-        call_node.put("unit_alpha_tag", call->get_system()->find_unit_tag(stat_node.get<long>("srcId")));
-        call_node.put("elapsed", stat_node.get<std::string>("elapsed"));
-        call_node.put("length", round_to_str(stat_node.get<double>("length")));
-        call_node.put("call_state", stat_node.get<std::string>("state"));
-        call_node.put("call_state_type", tr_state[stat_node.get<int>("state")]);
-        call_node.put("mon_state", stat_node.get<std::string>("monState"));
-        call_node.put("mon_state_type", mon_state[stat_node.get<int>("monState")]);
-        call_node.put("rec_num", stat_node.get<std::string>("recNum", ""));
-        call_node.put("src_num", stat_node.get<std::string>("srcNum", ""));
-        call_node.put("rec_state", stat_node.get<std::string>("recState", ""));
-        call_node.put("rec_state_type", tr_state[stat_node.get<int>("recState", -1)]);
-        call_node.put("phase2", stat_node.get<std::string>("phase2"));
-        call_node.put("analog", stat_node.get<std::string>("analog", ""));
-        call_node.put("conventional", stat_node.get<std::string>("conventional"));
-        call_node.put("encrypted", stat_node.get<std::string>("encrypted"));
-        call_node.put("emergency", stat_node.get<std::string>("emergency"));
-        call_node.put("stop_time", stat_node.get<std::string>("stopTime"));
-        calls_node.push_back(std::make_pair("", call_node));
+        calls_json += {
+            {"id", stat_node.get<std::string>("id")},
+            {"call_num", stat_node.get<long>("callNum")},
+            {"freq", stat_node.get<double>("freq")},
+            {"sys_num", stat_node.get<int>("sysNum")},
+            {"sys_name", stat_node.get<std::string>("shortName")},
+            {"talkgroup", stat_node.get<long>("talkgroup")},
+            {"talkgroup_alpha_tag", stat_node.get<std::string>("talkgrouptag")},
+            {"unit", stat_node.get<long>("srcId")},
+            {"unit_alpha_tag", call->get_system()->find_unit_tag(stat_node.get<long>("srcId"))},
+            {"elapsed", stat_node.get<long>("elapsed")},
+            {"length", round_float(stat_node.get<double>("length"))},
+            {"call_state", stat_node.get<int>("state")},
+            {"call_state_type", tr_state[stat_node.get<int>("state")]},
+            {"mon_state", stat_node.get<int>("monState")},
+            {"mon_state_type", mon_state[stat_node.get<int>("monState")]},
+            {"rec_num", stat_node.get<int>("recNum", -1)},
+            {"src_num", stat_node.get<int>("srcNum", -1)},
+            {"rec_state", stat_node.get<int>("recState", -1)},
+            {"rec_state_type", tr_state[stat_node.get<int>("recState", -1)]},
+            {"phase2", stat_node.get<bool>("phase2")},
+            {"analog", stat_node.get<bool>("analog", false)},
+            {"conventional", stat_node.get<bool>("conventional")},
+            {"encrypted", stat_node.get<bool>("encrypted")},
+            {"emergency", stat_node.get<bool>("emergency")},
+            {"stop_time", stat_node.get<long>("stopTime")}};
       }
     }
-    return send_object(calls_node, "calls", "calls_active", this->topic, false);
+    return send_json(calls_json, "calls", "calls_active", this->topic, false);
   }
 
   // send_recorders()
@@ -471,27 +450,25 @@ public:
   //   MQTT: topic/recorders
   int send_recorders(std::vector<Recorder *> recorders)
   {
-    boost::property_tree::ptree recs_node;
+    nlohmann::ordered_json recorders_json;
 
     for (std::vector<Recorder *>::iterator it = recorders.begin(); it != recorders.end(); ++it)
     {
       Recorder *recorder = *it;
       boost::property_tree::ptree stat_node = recorder->get_stats();
-      boost::property_tree::ptree rec_node;
-
-      rec_node.put("id", stat_node.get<std::string>("id"));
-      rec_node.put("src_num", stat_node.get<std::string>("srcNum"));
-      rec_node.put("rec_num", stat_node.get<std::string>("recNum"));
-      rec_node.put("type", stat_node.get<std::string>("type"));
-      rec_node.put("duration", round_to_str(stat_node.get<double>("duration")));
-      rec_node.put("freq", recorder->get_freq());
-      rec_node.put("count", stat_node.get<std::string>("count"));
-      rec_node.put("rec_state", stat_node.get<std::string>("state"));
-      rec_node.put("rec_state_type", tr_state[stat_node.get<int>("state")]);
-      rec_node.put("squelched", recorder->is_squelched());
-      recs_node.push_back(std::make_pair("", rec_node));
+      recorders_json += {
+          {"id", stat_node.get<std::string>("id")},
+          {"src_num", stat_node.get<int>("srcNum")},
+          {"rec_num", stat_node.get<int>("recNum")},
+          {"type", stat_node.get<std::string>("type")},
+          {"duration", round_float(stat_node.get<double>("duration"))},
+          {"freq", recorder->get_freq()},
+          {"count", stat_node.get<int>("count")},
+          {"rec_state", stat_node.get<int>("state")},
+          {"rec_state_type", tr_state[stat_node.get<int>("state")]},
+          {"squelched", recorder->is_squelched()}};
     }
-    return send_object(recs_node, "recorders", "recorders", this->topic, false);
+    return send_json(recorders_json, "recorders", "recorders", this->topic, false);
   }
 
   // setup_recorder()
@@ -501,19 +478,19 @@ public:
   int setup_recorder(Recorder *recorder) override
   {
     boost::property_tree::ptree stat_node = recorder->get_stats();
-    boost::property_tree::ptree rec_node;
 
-    rec_node.put("id", stat_node.get<std::string>("id"));
-    rec_node.put("src_num", stat_node.get<std::string>("srcNum"));
-    rec_node.put("rec_num", stat_node.get<std::string>("recNum"));
-    rec_node.put("type", stat_node.get<std::string>("type"));
-    rec_node.put("freq", recorder->get_freq());
-    rec_node.put("duration", round_to_str(stat_node.get<double>("duration")));
-    rec_node.put("count", stat_node.get<std::string>("count"));
-    rec_node.put("rec_state", stat_node.get<std::string>("state"));
-    rec_node.put("rec_state_type", tr_state[stat_node.get<int>("state")]);
-    rec_node.put("squelched", recorder->is_squelched());
-    return send_object(rec_node, "recorder", "recorder", this->topic, false);
+    nlohmann::ordered_json recorder_json = {
+        {"id", stat_node.get<std::string>("id")},
+        {"src_num", stat_node.get<int>("srcNum")},
+        {"rec_num", stat_node.get<int>("recNum")},
+        {"type", stat_node.get<std::string>("type")},
+        {"duration", round_float(stat_node.get<double>("duration"))},
+        {"freq", recorder->get_freq()},
+        {"count", stat_node.get<int>("count")},
+        {"rec_state", stat_node.get<int>("state")},
+        {"rec_state_type", tr_state[stat_node.get<int>("state")]},
+        {"squelched", recorder->is_squelched()}};
+    return send_json(recorder_json, "recorder", "recorder", this->topic, false);
   }
 
   // call_start()
@@ -527,55 +504,53 @@ public:
     long talkgroup_num = call->get_talkgroup();
     long source_id = call->get_current_source_id();
     std::string short_name = call->get_short_name();
+    boost::property_tree::ptree stat_node = call->get_stats();
 
     if ((this->unit_enabled))
     {
-      boost::property_tree::ptree call_node;
       std::string patch_string = patches_to_str(call->get_system()->get_talkgroup_patch(talkgroup_num));
+      nlohmann::ordered_json unit_json = {
+          {"sys_num", call->get_system()->get_sys_num()},
+          {"sys_name", short_name},
+          {"call_num", call->get_call_num()},
+          {"start_time", call->get_start_time()},
+          {"freq", call->get_freq()},
+          {"unit", source_id},
+          {"unit_alpha_tag", call->get_system()->find_unit_tag(source_id)},
+          {"talkgroup", talkgroup_num},
+          {"talkgroup_alpha_tag", call->get_talkgroup_tag()},
+          {"talkgroup_patches", patch_string},
+          {"encrypted", call->get_encrypted()}};
+      send_json(unit_json, "call", "call", this->unit_topic + "/" + short_name, false);
+    };
 
-      call_node.put("sys_num", call->get_system()->get_sys_num());
-      call_node.put("sys_name", short_name);
-      call_node.put("call_num", call->get_call_num());
-      call_node.put("start_time", call->get_start_time());
-      call_node.put("freq", call->get_freq());
-      call_node.put("unit", source_id);
-      call_node.put("unit_alpha_tag", call->get_system()->find_unit_tag(source_id));
-      call_node.put("talkgroup", talkgroup_num);
-      call_node.put("talkgroup_alpha_tag", call->get_talkgroup_tag());
-      call_node.put("talkgroup_patches", patch_string);
-      call_node.put("encrypted", call->get_encrypted());
-      send_object(call_node, "call", "call", this->unit_topic + "/" + short_name, false);
-    }
-
-    boost::property_tree::ptree stat_node = call->get_stats();
-    boost::property_tree::ptree call_node;
-
-    call_node.put("id", stat_node.get<std::string>("id"));
-    call_node.put("call_num", stat_node.get<std::string>("callNum"));
-    call_node.put("freq", stat_node.get<std::string>("freq"));
-    call_node.put("sys_num", stat_node.get<std::string>("sysNum"));
-    call_node.put("sys_name", stat_node.get<std::string>("shortName"));
-    call_node.put("talkgroup", stat_node.get<std::string>("talkgroup"));
-    call_node.put("talkgroup_alpha_tag", stat_node.get<std::string>("talkgrouptag"));
-    call_node.put("unit", stat_node.get<std::string>("srcId"));
-    call_node.put("unit_alpha_tag", call->get_system()->find_unit_tag(source_id));
-    call_node.put("elapsed", stat_node.get<std::string>("elapsed"));
-    call_node.put("length", round_to_str(stat_node.get<double>("length")));
-    call_node.put("call_state", stat_node.get<std::string>("state"));
-    call_node.put("call_state_type", tr_state[stat_node.get<int>("state")]);
-    call_node.put("mon_state", stat_node.get<std::string>("monState"));
-    call_node.put("mon_state_type", mon_state[stat_node.get<int>("monState")]);
-    call_node.put("rec_num", stat_node.get<std::string>("recNum", ""));
-    call_node.put("src_num", stat_node.get<std::string>("srcNum", ""));
-    call_node.put("rec_state", stat_node.get<std::string>("recState", ""));
-    call_node.put("rec_state_type", tr_state[stat_node.get<int>("recState", -1)]);
-    call_node.put("phase2", stat_node.get<std::string>("phase2"));
-    call_node.put("analog", stat_node.get<std::string>("analog", ""));
-    call_node.put("conventional", stat_node.get<std::string>("conventional"));
-    call_node.put("encrypted", stat_node.get<std::string>("encrypted"));
-    call_node.put("emergency", stat_node.get<std::string>("emergency"));
-    call_node.put("stop_time", stat_node.get<std::string>("stopTime"));
-    return send_object(call_node, "call", "call_start", this->topic, false);
+    nlohmann::ordered_json call_json = {
+        {"id", stat_node.get<std::string>("id")},
+        {"call_num", stat_node.get<long>("callNum")},
+        {"freq", stat_node.get<double>("freq")},
+        {"sys_num", stat_node.get<int>("sysNum")},
+        {"sys_name", stat_node.get<std::string>("shortName")},
+        {"talkgroup", stat_node.get<int>("talkgroup")},
+        {"talkgroup_alpha_tag", stat_node.get<std::string>("talkgrouptag")},
+        {"unit", stat_node.get<long>("srcId")},
+        {"unit_alpha_tag", call->get_system()->find_unit_tag(source_id)},
+        {"elapsed", stat_node.get<long>("elapsed")},
+        {"length", round_float(stat_node.get<double>("length"))},
+        {"call_state", stat_node.get<int>("state")},
+        {"call_state_type", tr_state[stat_node.get<int>("state")]},
+        {"mon_state", stat_node.get<int>("monState")},
+        {"mon_state_type", mon_state[stat_node.get<int>("monState")]},
+        {"phase2", stat_node.get<bool>("phase2")},
+        {"analog", stat_node.get<bool>("analog", false)},
+        {"rec_num", stat_node.get<int>("recNum", -1)},
+        {"src_num", stat_node.get<int>("srcNum", -1)},
+        {"rec_state", stat_node.get<int>("recState", -1)},
+        {"rec_state_type", tr_state[stat_node.get<int>("recState", -1)]},
+        {"conventional", stat_node.get<bool>("conventional")},
+        {"encrypted", stat_node.get<bool>("encrypted")},
+        {"emergency", stat_node.get<bool>("emergency")},
+        {"stop_time", stat_node.get<long>("stopTime")}};
+    return send_json(call_json, "call", "call_start", this->topic, false);
   }
 
   // call_end()
@@ -589,62 +564,64 @@ public:
 
     if (this->unit_enabled)
     {
-      boost::property_tree::ptree end_node;
       // source_list[] can be used to supplement transmission_list[] info
       std::vector<Call_Source> source_list = call_info.transmission_source_list;
       int transmission_num = 0;
 
       BOOST_FOREACH (auto &transmission, call_info.transmission_list)
       {
-        end_node.put("call_num", call_info.call_num);
-        end_node.put("sys_name", call_info.short_name);
-        end_node.put("unit", transmission.source);
-        end_node.put("unit_alpha_tag", source_list[transmission_num].tag);
-        end_node.put("start_time", transmission.start_time);
-        end_node.put("stop_time", transmission.stop_time);
-        end_node.put("sample_count", transmission.sample_count);
-        end_node.put("spike_count", transmission.spike_count);
-        end_node.put("error_count", transmission.error_count);
-        end_node.put("freq", call_info.freq);
-        end_node.put("length", round_to_str(transmission.length));
-        end_node.put("transmission_filename", transmission.filename);
-        end_node.put("call_filename", call_info.filename);
-        end_node.put("position", round_to_str(source_list[transmission_num].position));
-        end_node.put("talkgroup", call_info.talkgroup);
-        end_node.put("talkgroup_alpha_tag", call_info.talkgroup_alpha_tag);
-        end_node.put("talkgroup_description", call_info.talkgroup_description);
-        end_node.put("talkgroup_group", call_info.talkgroup_group);
-        end_node.put("talkgroup_patches", patch_string);
-        end_node.put("encrypted", call_info.encrypted);
-        end_node.put("emergency", source_list[transmission_num].emergency);
-        end_node.put("signal_system", source_list[transmission_num].signal_system);
-        send_object(end_node, "end", "end", this->unit_topic + "/" + call_info.short_name.c_str(), false);
+        nlohmann::ordered_json unit_json = {
+            {"call_num", call_info.call_num},
+            {"sys_name", call_info.short_name},
+            {"unit", transmission.source},
+            {"unit_alpha_tag", source_list[transmission_num].tag},
+            {"start_time", transmission.start_time},
+            {"stop_time", transmission.stop_time},
+            {"sample_count", transmission.sample_count},
+            {"spike_count", transmission.spike_count},
+            {"error_count", transmission.error_count},
+            {"freq", call_info.freq},
+            {"length", round_float(transmission.length)},
+            {"transmission_filename", transmission.filename},
+            {"call_filename", call_info.filename},
+            {"position", round_float(source_list[transmission_num].position)},
+            {"talkgroup", call_info.talkgroup},
+            {"talkgroup_alpha_tag", call_info.talkgroup_alpha_tag},
+            {"talkgroup_description", call_info.talkgroup_description},
+            {"talkgroup_group", call_info.talkgroup_group},
+            {"talkgroup_patches", patch_string},
+            {"encrypted", call_info.encrypted},
+            {"emergency", source_list[transmission_num].emergency},
+            {"signal_system", source_list[transmission_num].signal_system}};
+        send_json(unit_json, "end", "end", this->unit_topic + "/" + call_info.short_name.c_str(), false);
         transmission_num++;
       }
     }
-    boost::property_tree::ptree call_node;
-    call_node.put("call_num", call_info.call_num);
-    call_node.put("sys_name", call_info.short_name);
-    call_node.put("start_time", call_info.start_time);
-    call_node.put("stop_time", call_info.stop_time);
-    call_node.put("length", round_to_str(call_info.length));
-    call_node.put("process_call_time", call_info.process_call_time);
-    call_node.put("retry_attempt", call_info.retry_attempt);
-    call_node.put("error_count", call_info.error_count);
-    call_node.put("spike_count", call_info.spike_count);
-    call_node.put("freq", call_info.freq);
-    call_node.put("encrypted", call_info.encrypted);
-    call_node.put("emergency", call_info.emergency);
-    call_node.put("tdma_slot", call_info.tdma_slot);
-    call_node.put("phase2_tdma", call_info.phase2_tdma);
-    call_node.put("talkgroup", call_info.talkgroup);
-    call_node.put("talkgroup_tag", call_info.talkgroup_tag);
-    call_node.put("talkgroup_alpha_tag", call_info.talkgroup_alpha_tag);
-    call_node.put("talkgroup_description", call_info.talkgroup_description);
-    call_node.put("talkgroup_group", call_info.talkgroup_group);
-    call_node.put("talkgroup_patches", patch_string);
-    call_node.put("audio_type", call_info.audio_type);
-    return send_object(call_node, "call", "call_end", this->topic, false);
+
+    nlohmann::ordered_json call_json = {
+        {"call_num", call_info.call_num},
+        {"sys_name", call_info.short_name},
+        {"start_time", call_info.start_time},
+        {"stop_time", call_info.stop_time},
+        {"length", round_float(call_info.length)},
+        {"process_call_time", call_info.process_call_time},
+        {"retry_attempt", call_info.retry_attempt},
+        {"error_count", call_info.error_count},
+        {"spike_count", call_info.spike_count},
+        {"freq", call_info.freq},
+        {"encrypted", call_info.encrypted},
+        {"emergency", call_info.emergency},
+        {"tdma_slot", call_info.tdma_slot},
+        {"phase2_tdma", call_info.phase2_tdma},
+        {"talkgroup", call_info.talkgroup},
+        {"talkgroup_tag", call_info.talkgroup_tag},
+        {"talkgroup_alpha_tag", call_info.talkgroup_alpha_tag},
+        {"talkgroup_description", call_info.talkgroup_description},
+        {"talkgroup_group", call_info.talkgroup_group},
+        {"talkgroup_patches", patch_string},
+        {"audio_type", call_info.audio_type},
+    };
+    return send_json(call_json, "call", "call_end", this->topic, false);
   }
 
   // unit_registration()
@@ -655,13 +632,13 @@ public:
   {
     if ((this->unit_enabled))
     {
-      boost::property_tree::ptree unit_node;
-
-      unit_node.put("sys_num", sys->get_sys_num());
-      unit_node.put("sys_name", sys->get_short_name());
-      unit_node.put("unit", source_id);
-      unit_node.put("unit_alpha_tag", sys->find_unit_tag(source_id));
-      return send_object(unit_node, "on", "on", this->unit_topic + "/" + sys->get_short_name().c_str(), false);
+      nlohmann::ordered_json unit_json = {
+          {"sys_num", sys->get_sys_num()},
+          {"sys_name", sys->get_short_name()},
+          {"unit", source_id},
+          {"unit_alpha_tag", sys->find_unit_tag(source_id)},
+      };
+      return send_json(unit_json, "on", "on", this->unit_topic + "/" + sys->get_short_name().c_str(), false);
     }
     return 0;
   }
@@ -674,13 +651,12 @@ public:
   {
     if ((this->unit_enabled))
     {
-      boost::property_tree::ptree unit_node;
-
-      unit_node.put("sys_num", sys->get_sys_num());
-      unit_node.put("sys_name", sys->get_short_name());
-      unit_node.put("unit", source_id);
-      unit_node.put("unit_alpha_tag", sys->find_unit_tag(source_id));
-      return send_object(unit_node, "off", "off", this->unit_topic + "/" + sys->get_short_name().c_str(), false);
+      nlohmann::ordered_json unit_json = {
+          {"sys_num", sys->get_sys_num()},
+          {"sys_name", sys->get_short_name()},
+          {"unit", source_id},
+          {"unit_alpha_tag", sys->find_unit_tag(source_id)}};
+      return send_json(unit_json, "off", "off", this->unit_topic + "/" + sys->get_short_name().c_str(), false);
     }
     return 0;
   }
@@ -693,13 +669,12 @@ public:
   {
     if ((this->unit_enabled))
     {
-      boost::property_tree::ptree unit_node;
-
-      unit_node.put("sys_num", sys->get_sys_num());
-      unit_node.put("sys_name", sys->get_short_name());
-      unit_node.put("unit", source_id);
-      unit_node.put("unit_alpha_tag", sys->find_unit_tag(source_id));
-      return send_object(unit_node, "ackresp", "ackresp", this->unit_topic + "/" + sys->get_short_name().c_str(), false);
+      nlohmann::ordered_json unit_json = {
+          {"sys_num", sys->get_sys_num()},
+          {"sys_name", sys->get_short_name()},
+          {"unit", source_id},
+          {"unit_alpha_tag", sys->find_unit_tag(source_id)}};
+      return send_json(unit_json, "ackresp", "ackresp", this->unit_topic + "/" + sys->get_short_name().c_str(), false);
     }
     return 0;
   }
@@ -712,22 +687,22 @@ public:
   {
     if ((this->unit_enabled))
     {
-      boost::property_tree::ptree unit_node;
+      Talkgroup *tg = sys->find_talkgroup(talkgroup_num);
       std::string patch_string = patches_to_str(sys->get_talkgroup_patch(talkgroup_num));
 
-      unit_node.put("sys_num", sys->get_sys_num());
-      unit_node.put("sys_name", sys->get_short_name());
-      unit_node.put("unit", source_id);
-      unit_node.put("unit_alpha_tag", sys->find_unit_tag(source_id));
-      unit_node.put("talkgroup", talkgroup_num);
-      unit_node.put("talkgroup_alpha_tag", "");
-      Talkgroup *tg = sys->find_talkgroup(talkgroup_num);
+      nlohmann::ordered_json unit_json = {
+          {"sys_num", sys->get_sys_num()},
+          {"sys_name", sys->get_short_name()},
+          {"unit", source_id},
+          {"unit_alpha_tag", sys->find_unit_tag(source_id)},
+          {"talkgroup", talkgroup_num},
+          {"talkgroup_alpha_tag", ""},
+          {"talkgroup_patches", patch_string}};
       if (tg != NULL)
       {
-        unit_node.put("talkgroup_alpha_tag", tg->alpha_tag);
+        unit_json["talkgroup_alpha_tag"] = tg->alpha_tag;
       }
-      unit_node.put("talkgroup_patches", patch_string);
-      return send_object(unit_node, "join", "join", this->unit_topic + "/" + sys->get_short_name().c_str(), false);
+      return send_json(unit_json, "join", "join", this->unit_topic + "/" + sys->get_short_name().c_str(), false);
     }
     return 0;
   }
@@ -740,15 +715,14 @@ public:
   {
     if ((this->unit_enabled))
     {
-      boost::property_tree::ptree unit_node;
-
-      unit_node.put("sys_num", sys->get_sys_num());
-      unit_node.put("sys_name", sys->get_short_name());
-      unit_node.put("unit", source_id);
-      unit_node.put("unit_alpha_tag", sys->find_unit_tag(source_id));
-      return send_object(unit_node, "data", "data", this->unit_topic + "/" + sys->get_short_name().c_str(), false);
+      nlohmann::ordered_json unit_json = {
+          {"sys_num", sys->get_sys_num()},
+          {"sys_name", sys->get_short_name()},
+          {"unit", source_id},
+          {"unit_alpha_tag", sys->find_unit_tag(source_id)},
+      };
+      return send_json(unit_json, "data", "data", this->unit_topic + "/" + sys->get_short_name().c_str(), false);
     }
-
     return 0;
   }
 
@@ -759,20 +733,22 @@ public:
   {
     if ((this->unit_enabled))
     {
-      boost::property_tree::ptree unit_node;
-
-      unit_node.put("sys_num", sys->get_sys_num());
-      unit_node.put("sys_name", sys->get_short_name());
-      unit_node.put("unit", source_id);
-      unit_node.put("unit_alpha_tag", sys->find_unit_tag(source_id));
-      unit_node.put("talkgroup", talkgroup_num);
-      unit_node.put("talkgroup_alpha_tag", "");
       Talkgroup *tg = sys->find_talkgroup(talkgroup_num);
+      std::string patch_string = patches_to_str(sys->get_talkgroup_patch(talkgroup_num));
+
+      nlohmann::ordered_json unit_json = {
+          {"sys_num", sys->get_sys_num()},
+          {"sys_name", sys->get_short_name()},
+          {"unit", source_id},
+          {"unit_alpha_tag", sys->find_unit_tag(source_id)},
+          {"talkgroup", talkgroup_num},
+          {"talkgroup_alpha_tag", ""},
+          {"talkgroup_patches", patch_string}};
       if (tg != NULL)
       {
-        unit_node.put("talkgroup_alpha_tag", tg->alpha_tag);
+        unit_json["talkgroup_alpha_tag"] = tg->alpha_tag;
       }
-      return send_object(unit_node, "ans_req", "ans_req", this->unit_topic + "/" + sys->get_short_name().c_str(), false);
+      return send_json(unit_json, "ans_req", "ans_req", this->unit_topic + "/" + sys->get_short_name().c_str(), false);
     }
     return 0;
   }
@@ -785,22 +761,22 @@ public:
   {
     if ((this->unit_enabled))
     {
-      boost::property_tree::ptree unit_node;
+      Talkgroup *tg = sys->find_talkgroup(talkgroup_num);
       std::string patch_string = patches_to_str(sys->get_talkgroup_patch(talkgroup_num));
 
-      unit_node.put("sys_num", sys->get_sys_num());
-      unit_node.put("sys_name", sys->get_short_name());
-      unit_node.put("unit", source_id);
-      unit_node.put("unit_alpha_tag", sys->find_unit_tag(source_id));
-      unit_node.put("talkgroup", talkgroup_num);
-      unit_node.put("talkgroup_alpha_tag", "");
-      Talkgroup *tg = sys->find_talkgroup(talkgroup_num);
+      nlohmann::ordered_json unit_json = {
+          {"sys_num", sys->get_sys_num()},
+          {"sys_name", sys->get_short_name()},
+          {"unit", source_id},
+          {"unit_alpha_tag", sys->find_unit_tag(source_id)},
+          {"talkgroup", talkgroup_num},
+          {"talkgroup_alpha_tag", ""},
+          {"talkgroup_patches", patch_string}};
       if (tg != NULL)
       {
-        unit_node.put("talkgroup_alpha_tag", tg->alpha_tag);
+        unit_json["talkgroup_alpha_tag"] = tg->alpha_tag;
       }
-      unit_node.put("talkgroup_patches", patch_string);
-      return send_object(unit_node, "location", "location", this->unit_topic + "/" + sys->get_short_name().c_str(), false);
+      return send_json(unit_json, "location", "location", this->unit_topic + "/" + sys->get_short_name().c_str(), false);
     }
     return 0;
   }
@@ -812,7 +788,7 @@ public:
   // parse_config()
   //   TRUNK-RECORDER PLUGIN API: Called before init(); parses the config information for this plugin.
   // int parse_config(boost::property_tree::ptree &cfg) override
-  int parse_config(json config_data)  override
+  int parse_config(json config_data) override
   {
     this->log_prefix = "\t[MQTT Status]\t";
     this->mqtt_broker = config_data.value("broker", "tcp://localhost:1883");
@@ -981,14 +957,15 @@ public:
     return std::regex_replace(std::regex_replace(input, escape_seq_regex, ""), tab_regex, "    ");
   }
 
-  // round_to_str()
-  //   Round a float to two decimal places and return it as as string.
+  // round_float()
+  //   Round a float to two decimal places and return it as as double.
   //   "position", "length", and "duration" are the usual offenders.
-  std::string round_to_str(double num)
+  double round_float(double num)
   {
     char rounded[20];
     snprintf(rounded, sizeof(rounded), "%.2f", num);
-    return std::string(rounded);
+    double result = atof(rounded);
+    return result;
   }
 
   // patches_to_str()
@@ -1016,27 +993,23 @@ public:
   void open_connection()
   {
     // Set a connect/disconnect message between client and broker
-    std::stringstream connect_json;
-    std::stringstream lwt_json;
     std::string status_topic = this->topic + "/trunk_recorder/status";
 
-    boost::property_tree::ptree status;
-    status.put("status", "connected");
-    status.put("instance_id", this->instance_id);
-    status.put("client_id", this->client_id);
-    boost::property_tree::write_json(connect_json, status);
-    status.put("status", "disconnected");
-    boost::property_tree::write_json(lwt_json, status);
-
+    json status_msg = {
+        {"status", "connected"},
+        {"instance_id", this->instance_id},
+        {"client_id", this->client_id},
+    };
     mqtt::message_ptr conn_msg = mqtt::message_ptr_builder()
                                      .topic(status_topic)
-                                     .payload(connect_json.str())
+                                     .payload(status_msg.dump())
                                      .qos(this->qos)
                                      .retained(true)
                                      .finalize();
 
-    std::string lwt_string = lwt_json.str();
-    auto will_msg = mqtt::message(status_topic, lwt_string.c_str(), strlen(lwt_string.c_str()), this->qos, true);
+    status_msg["status"] = "disconnected";
+    std::string lwt_json = status_msg.dump();
+    auto will_msg = mqtt::message(status_topic, lwt_json.c_str(), strlen(lwt_json.c_str()), this->qos, true);
 
     // Set SSL options
     mqtt::ssl_options sslopts = mqtt::ssl_options_builder()
@@ -1078,35 +1051,31 @@ public:
     }
   }
 
-  // send_object()
+  // send_json()
   //   Send a MQTT message using the configured connection and paho libraries.
-  //   send_object(
-  //      boost::property_tree::ptree data  <- payload,
-  //      std::string name                  <- subtopic,
-  //      std::string type                  <- message type,
-  //      std::string object_topic          <- topic,
+  //   send_json(
+  //      json data                         <- json payload,
+  //      std::string name                  <- json payload name,
+  //      std::string type                  <- subtopic / message type
+  //      std::string object_topic          <- topic base,
   //      bool retained                     <- retain message at the broker (config, system, etc.)
   //      )
-  int send_object(boost::property_tree::ptree data, std::string name, std::string type, std::string object_topic, bool retained)
+  int send_json(nlohmann::ordered_json data, std::string name, std::string type, std::string object_topic, bool retained)
   {
     // Ignore requests to send MQTT messages before the connection is opened
     if (m_open == false)
       return 0;
 
-    // Build the MQTT payload
-    boost::property_tree::ptree payload;
-    payload.add_child(name, data);
-    payload.put("type", type);
-    payload.put("timestamp", time(NULL));
-    payload.put("instance_id", instance_id);
-
-    std::stringstream payload_json;
-    boost::property_tree::write_json(payload_json, payload);
+    nlohmann::ordered_json payload = {
+        {"type", type},
+        {name, data},
+        {"timestamp", time(NULL)},
+        {"instance_id", instance_id}};
 
     // Assemble the MQTT message
     mqtt::message_ptr pubmsg = mqtt::message_ptr_builder()
                                    .topic(object_topic + "/" + type)
-                                   .payload(payload_json.str())
+                                   .payload(payload.dump())
                                    .qos(this->qos)
                                    .retained(retained)
                                    .finalize();
@@ -1122,10 +1091,6 @@ public:
     }
     return 0;
   }
-
-  // Paho mqtt::iaction_listeners.  No longer used.
-  // void on_failure(const mqtt::token &tok) override{};
-  // void on_success(const mqtt::token &tok) override{};
 
   // Paho mqtt::callbacks.
   // connection_lost()
