@@ -173,7 +173,7 @@ private:
       nlohmann::ordered_json console_json = {
           {"time", boost::posix_time::to_iso_extended_string(rec["TimeStamp"].extract<boost::posix_time::ptime>().get())},
           {"severity", logging::trivial::to_string(rec["Severity"].extract<logging::trivial::severity_level>().get())},
-          {"log_msg", rec["Message"].extract<std::string>().get()}};
+          {"log_msg", strip_esc_seq(rec["Message"].extract<std::string>().get())}};
       parent_.console_message(console_json);
     }
 
@@ -193,8 +193,6 @@ public:
   //   MQTT: message_topic/status/trunk_recorder/console
   void console_message(nlohmann::ordered_json console_json)
   {
-    // Remove escape sequences before sending the log message
-    console_json["log_msg"] = strip_esc_seq(console_json["log_msg"]);
     send_json(console_json, "console", "console", this->console_topic, false);
   }
 
@@ -707,7 +705,7 @@ public:
     return 0;
   }
 
-  // unit_data_grant()
+  // unit_data_grant()cd bu
   //   Unit data grant (data)
   //   TRUNK-RECORDER PLUGIN API: Called each DATA_GRANT message
   //   MQTT: unit_topic/shortname/data
