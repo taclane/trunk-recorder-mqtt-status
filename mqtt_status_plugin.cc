@@ -173,7 +173,7 @@ private:
       nlohmann::ordered_json console_json = {
           {"time", boost::posix_time::to_iso_extended_string(rec["TimeStamp"].extract<boost::posix_time::ptime>().get())},
           {"severity", logging::trivial::to_string(rec["Severity"].extract<logging::trivial::severity_level>().get())},
-          {"log_msg", strip_esc_seq(rec["Message"].extract<std::string>().get())}};
+          {"log_msg", parent_.strip_esc_seq(rec["Message"].extract<std::string>().get())}};
       parent_.console_message(console_json);
     }
 
