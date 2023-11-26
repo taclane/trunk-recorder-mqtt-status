@@ -1,6 +1,6 @@
 // MQTT Status and Unit Plugin for Trunk-Recorder
 // ********************************
-// Requires trunk-recorder 4.7 or later and Paho MQTT libraries
+// Requires trunk-recorder 4.7 (commit 837a057 14 NOV 2023) or later, and Paho MQTT libraries
 // ********************************
 
 #include <time.h>
@@ -570,6 +570,7 @@ public:
       {
         nlohmann::ordered_json unit_json = {
             {"call_num", call_info.call_num},
+            {"sys_num", call_info.sys_num},
             {"sys_name", call_info.short_name},
             {"unit", transmission.source},
             {"unit_alpha_tag", source_list[transmission_num].tag},
@@ -598,6 +599,7 @@ public:
 
     nlohmann::ordered_json call_json = {
         {"call_num", call_info.call_num},
+        {"sys_num", call_info.sys_num},
         {"sys_name", call_info.short_name},
         {"start_time", call_info.start_time},
         {"stop_time", call_info.stop_time},
@@ -705,7 +707,7 @@ public:
     return 0;
   }
 
-  // unit_data_grant()cd bu
+  // unit_data_grant()
   //   Unit data grant (data)
   //   TRUNK-RECORDER PLUGIN API: Called each DATA_GRANT message
   //   MQTT: unit_topic/shortname/data

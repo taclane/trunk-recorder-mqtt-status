@@ -487,6 +487,7 @@ Sent after trunk-recorder completes recording a call.
 {
   "call": {
     "call_num": "51697",
+    "sys_num": 1,
     "sys_name": "p25trunk",
     "start_time": "1686700238",
     "stop_time": "1686700263",
