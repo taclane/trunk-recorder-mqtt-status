@@ -637,7 +637,7 @@ public:
     log_prefix = "\t[MQTT Status]\t";
     mqtt_broker = config_data.value("broker", "tcp://localhost:1883");
     mqtt_username = config_data.value("username", "");
-    mqtt_password= config_data.value("password", "");
+    mqtt_password = config_data.value("password", "");
     topic_status = config_data.value("topic", "");
     topic_unit = config_data.value("unit_topic", "");
     topic_message = config_data.value("message_topic", "");
@@ -667,7 +667,7 @@ public:
     // Print plugin startup info
     BOOST_LOG_TRIVIAL(info) << log_prefix << "Broker:                 " << mqtt_broker;
     BOOST_LOG_TRIVIAL(info) << log_prefix << "Username:               " << mqtt_username;
-    BOOST_LOG_TRIVIAL(info) << log_prefix << "Password:               " << ((mqtt_password== "") ? "[none]" : "********");
+    BOOST_LOG_TRIVIAL(info) << log_prefix << "Password:               " << ((mqtt_password == "") ? "[none]" : "********");
     BOOST_LOG_TRIVIAL(info) << log_prefix << "Client ID:              " << mqtt_client_id;
     BOOST_LOG_TRIVIAL(info) << log_prefix << "Status Topic:           " << topic_status;
     BOOST_LOG_TRIVIAL(info) << log_prefix << "Unit Topic:             " << ((topic_unit == "") ? "[disabled]" : topic_unit + "/shortname");
@@ -946,7 +946,7 @@ public:
         {"talkgroup_description", ""},
         {"talkgroup_group", ""},
         {"talkgroup_tag", ""}};
-    
+
     if (tg != NULL)
     {
       tg_json["talkgroup_alpha_tag"] = tg->alpha_tag;
@@ -1001,7 +1001,7 @@ public:
                                          .finalize();
 
     // Set user/pass if indicated
-    if ((mqtt_username != "") && (mqtt_password!= ""))
+    if ((mqtt_username != "") && (mqtt_password != ""))
     {
       BOOST_LOG_TRIVIAL(info) << log_prefix << "Setting MQTT Broker username and password..." << endl;
       connOpts.set_user_name(mqtt_username);
