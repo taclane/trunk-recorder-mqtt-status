@@ -36,6 +36,7 @@ Trunk message rate reporting by system
 
 ```json
 {
+  "type": "rates",
   "rates": [
     {
       "sys_num": 2,
@@ -52,7 +53,6 @@ Trunk message rate reporting by system
       "control_channel": 853750000
     }
   ],
-  "type": "rates",
   "timestamp": 1686699024,
   "instance_id": "east-antenna"
 }
@@ -78,6 +78,7 @@ Trunk-recorder source and system config information. The message is retained on 
 
 ```json
 {
+    "type": "config",
     "config": {
         "sources": [
             {
@@ -164,7 +165,6 @@ Trunk-recorder source and system config information. The message is retained on 
         "instance_id": "east-antenna",
         "instance_key": ""
     },
-    "type": "config",
     "timestamp": 1686400353,
     "instance_id": "east-antenna"
 }
@@ -199,6 +199,7 @@ Configured systems are sent during startup. The message is retained on the MQTT 
 
 ```json
 {
+  "type": "systems",
   "systems": [
     {
       "sys_num": 0,
@@ -231,7 +232,6 @@ Configured systems are sent during startup. The message is retained on the MQTT 
       "site_id": 7
     }
   ],
-  "type": "systems",
   "timestamp": 1686400355,
   "instance_id": "east-antenna"
 }
@@ -255,6 +255,7 @@ Sent after a system is configured during trunk-recorder startup.
 
 ```json
 {
+  "type": "system",
   "system": {
     "sys_num": 3,
     "sys_name": "p25trunk",
@@ -265,7 +266,6 @@ Sent after a system is configured during trunk-recorder startup.
     "rfss": 1,
     "site_id": 7
   },
-  "type": "system",
   "timestamp": 1686146741,
   "instance_id": "east-antenna"
 }
@@ -287,6 +287,7 @@ List of active calls, updated every second.
 
 ```json
 {
+    "type": "calls_active",
     "calls": [
         {
             "id": "2_4011_1686699318",
@@ -322,7 +323,6 @@ List of active calls, updated every second.
             ...
         }
     ],
-    "type": "calls_active",
     "timestamp": 1686699330,
     "instance_id": "east-antenna"
 }
@@ -360,6 +360,7 @@ List of all recorders, updated every 3 seconds.
 
 ```json
 {
+    "type": "recorders",
     "recorders": [
         {
             "id": "0_19",
@@ -377,7 +378,6 @@ List of all recorders, updated every 3 seconds.
             ...
         }
     ],
-    "type": "recorders",
     "timestamp": 1686699405,
     "instance_id": "east-antenna"
 }
@@ -402,6 +402,7 @@ Recorder status updates.
 
 ```json
 {
+  "type": "recorder",
   "recorder": {
     "id": "4_16",
     "src_num": 4,
@@ -414,7 +415,6 @@ Recorder status updates.
     "rec_state_type": "IDLE",
     "squelched": false
   },
-  "type": "recorder",
   "timestamp": 1686700173,
   "instance_id": "east-antenna"
 }
@@ -439,37 +439,41 @@ Sent when a new trunked call starts, or when a conventional recorder is reset af
 
 ```json
 {
+  "type": "call_start",
   "call": {
     "id": "2_3029_1686700194",
     "call_num": 51684,
-    "freq": 770331250,
     "sys_num": 2,
     "sys_name": "p25trunk",
+    "freq": 770331250,
+    "unit": 849183,
+    "unit_alpha_tag": "Metro Dispatch",
     "talkgroup": 3029,
     "talkgroup_alpha_tag": "Metro Police N",
     "talkgroup_description": "Metro Dispatch North",
     "talkgroup_group": "Metro Police",
     "talkgroup_tag": "Law Dispatch",
-    "unit": 849183,
-    "unit_alpha_tag": "Metro Dispatch",
+    "talkgroup_patches": "",
     "elapsed": 0,
     "length": 0,
     "call_state": 0,
     "call_state_type": "MONITORING",
     "mon_state": 6,
     "mon_state_type": "DUPLICATE",
-    "phase2": false,
-    "analog": "",
-    "rec_num": "",
-    "src_num": "",
-    "rec_state": "",
+    "audio_type": "digital",
+    "phase2_tdma": false,
+    "tdma_slot": 0,
+    "analog": false,
+    "rec_num": -1,
+    "src_num": -1,
+    "rec_state": -1,
     "rec_state_type": "",
     "conventional": false,
     "encrypted": false,
     "emergency": false,
+    "start_time": 1686700194,
     "stop_time": 1686700194
   },
-  "type": "call_start",
   "timestamp": 1686700194,
   "instance_id": "east-antenna"
 }
@@ -486,16 +490,21 @@ call
                 + talkgroup_description
                 + talkgroup_group
                 + talkgroup_tag
+                + talkgroup_patches
   srcId        -> unit
                 + unit_alpha_tag
   state        -> call_state
                 + call_state_type
   monState     -> mon_state
                 + mon_state_type
+                + audio_type
+  phase2       -> phase2_tdma
+                + tdma_slot
   recNum       -> rec_num
   srcNum       -> src_num
   recState     -> rec_state
                 + rec_state_type
+                + start_time
   stopTime     -> stop_time
 ```
 
@@ -507,32 +516,46 @@ Sent after trunk-recorder completes recording a call.
 
 ```json
 {
+  "type": "call_end",
   "call": {
-    "call_num": 51697,
-    "sys_num": 1,
+    "id": "3_401_1701185024",
+    "call_num": 482,
+    "sys_num": 3,
     "sys_name": "p25trunk",
-    "start_time": 1686700238,
-    "stop_time": 1686700263,
-    "length": 17.60,
-    "process_call_time": 1686700268,
-    "retry_attempt": 0,
-    "error_count": 0,
-    "spike_count": 0,
-    "freq": 771606250,
+    "freq": 859200000,
+    "unit": 1849262,
+    "unit_alpha_tag": "Dispatch",
+    "talkgroup": 401,
+    "talkgroup_alpha_tag": "DISP 1",
+    "talkgroup_description": "Dispatch 1",
+    "talkgroup_group": "State Police",
+    "talkgroup_tag": "Law Dispatch",
+    "talkgroup_patches": "",
+    "elapsed": 0,
+    "length": 0.36,
+    "call_state": -1,
+    "call_state_type": "COMPLETED",
+    "mon_state": 0,
+    "mon_state_type": "UNSPECIFIED",
+    "audio_type": "digital tdma",
+    "phase2_tdma": true,
+    "tdma_slot": 1,
+    "analog": false,
+    "rec_num": -1,
+    "src_num": -1,
+    "rec_state": 6,
+    "rec_state_type": "STOPPED",
+    "conventional": false,
     "encrypted": false,
     "emergency": false,
-    "tdma_slot": 1,
-    "phase2_tdma": true,
-    "talkgroup": 4012,
-    "talkgroup_alpha_tag": "Bus 2",
-    "talkgroup_description": "Bus Dispatch 2",
-    "talkgroup_group": "Transit",
-    "talkgroup_tag": "Transportation",
-    "talkgroup_patches": "",
-    "audio_type": "digital tdma"
+    "start_time": 1701185024,
+    "stop_time": 1701185024,
+    "process_call_time": 1701185029,
+    "error_count": 0,
+    "spike_count": 0,
+    "retry_attempt": 0
   },
-  "type": "call_end",
-  "timestamp": 1686700268,
+  "timestamp": 1701185029,
   "instance_id": "east-antenna"
 }
 ```
@@ -541,8 +564,20 @@ Changes:
 
 ```
 call
+              + id
   short_name -> sys_name
+              + sys_num
   callNum    -> call_num
+              + elapsed
+              + call_state
+              + call_state_type
+              + mon_state
+              + mon_state_type
+              + rec_num
+              + src_num
+              + rec_state
+              + rec_state_type
+              + conventional
 ```
 
 ## plugin_status
@@ -553,9 +588,9 @@ Plugin status message, sent on startup or when the broker loses connection. The 
 
 ```json
 {
-  "status": "connected",
+  "client_id": "tr-status",
   "instance_id": "east-antenna",
-  "client_id": "tr-status"
+  "status": "connected"
 }
 ```
 
@@ -569,6 +604,7 @@ Channel grants. Sent when a call starts.
 
 ```json
 {
+  "type": "call",
   "call": {
     "sys_num": 3,
     "sys_name": "p25trunk",
@@ -585,7 +621,6 @@ Channel grants. Sent when a call starts.
     "freq": 770581250,
     "encrypted": false
   },
-  "type": "call",
   "timestamp": "1686700985",
   "instance_id": "east-antenna"
 }
@@ -611,35 +646,33 @@ Call end information by transmission. Reports information for conventional units
 `unit_topic/shortname/end`
 
 ```json
+
 {
-  "end": {
-    "call_num": 53726,
-    "sys_num": 2,
-    "sys_name": "p25trunk",
-    "unit": 46999,
-    "unit_alpha_tag": "Bus 999",
-    "start_time": 1686711476,
-    "stop_time": 1686711483,
-    "sample_count": 50560,
-    "spike_count": 0,
-    "error_count": 0,
-    "freq": 769656250,
-    "length": 6.32,
-    "transmission_filename": "/dev/shm/p25trunk/4012-1686711476_769656250.wav",
-    "call_filename": "/dev/shm/trunk-recorder/p25trunk/2023/6/13/4012-1686711439_769656250.0-call_53726.wav",
-    "position": 33.40,
-    "talkgroup": 4012,
-    "talkgroup_alpha_tag": "Bus 2",
-    "talkgroup_description": "Bus Dispatch 2",
-    "talkgroup_group": "City Transit",
-    "talkgroup_tag": "Transit",
-    "talkgroup_patches": "",
-    "encrypted": false,
-    "emergency": false,
-    "signal_system": ""
-  },
   "type": "end",
-  "timestamp": 1686711488,
+  "end": {
+    "sys_num": 3,
+    "sys_name": "p25trunk",
+    "unit": 129262,
+    "unit_alpha_tag": "Dispatch",
+    "talkgroup": 401,
+    "talkgroup_alpha_tag": "DISP 1",
+    "talkgroup_description": "Dispatch 1",
+    "talkgroup_group": "State Police",
+    "talkgroup_tag": "Law Dispatch",
+    "talkgroup_patches": "",
+    "call_num": 482,
+    "freq": 850000000,
+    "position": 0,
+    "length": 0.36,
+    "emergency": false,
+    "encrypted": false,
+    "start_time": 1701185024,
+    "stop_time": 1701185024,
+    "error_count": 0,
+    "spike_count": 0,
+    "sample_count": 2880
+  },
+  "timestamp": 1701185029,
   "instance_id": "east-antenna"
 }
 ```
@@ -653,6 +686,9 @@ call
   system     -> sys_name
   unit_alpha -> unit_alpha_tag
               + talkgroup_tag
+              - transmission_filename
+              - call_filename
+              - signal_system
 ```
 
 ## on
@@ -663,13 +699,13 @@ Unit registration (radio turned on)
 
 ```json
 {
+  "type": "on",
   "on": {
     "sys_num": 3,
     "sys_name": "p25trunk",
     "unit": 806308,
     "unit_alpha_tag": "State Port. 308"
   },
-  "type": "on",
   "timestamp": 1686711527,
   "instance_id": "east-antenna"
 }
@@ -692,13 +728,13 @@ Unit de-registration (radio turned off)
 
 ```json
 {
+  "type": "off",
   "off": {
     "sys_num": 3,
     "sys_name": "p25trunk",
     "unit": 804422,
     "unit_alpha_tag": "State Port. 422"
   },
-  "type": "off",
   "timestamp": 1686711529,
   "instance_id": "east-antenna"
 }
@@ -721,13 +757,13 @@ Unit acknowledge response.
 
 ```json
 {
+  "type": "ackresp",
   "ackresp": {
     "sys_num": 2,
     "sys_name": "p25trunk",
     "unit": 52001,
     "unit_alpha_tag": "FD Mobile 001"
   },
-  "type": "ackresp",
   "timestamp": 1686711630,
   "instance_id": "east-antenna"
 }
@@ -750,6 +786,7 @@ Unit group affiliation
 
 ```json
 {
+  "type": "join",
   "join": {
     "sys_num": 3,
     "sys_name": "p25trunk",
@@ -762,7 +799,6 @@ Unit group affiliation
     "talkgroup_tag": "Law",
     "talkgroup_patches": ""
   },
-  "type": "join",
   "timestamp": 1686711676,
   "instance_id": "east-antenna"
 }
@@ -788,13 +824,13 @@ Unit data grant
 
 ```json
 {
+  "type": "data",
   "data": {
     "sys_num": 3,
     "sys_name": "p25trunk",
     "unit": 849006,
     "unit_alpha_tag": ""
   },
-  "type": "data",
   "timestamp": 1686712418,
   "instance_id": "east-antenna"
 }
@@ -817,6 +853,7 @@ Unit answer request
 
 ```json
 {
+  "type": "ans_req",
   "ans_req": {
     "sys_num": 3,
     "sys_name": "p25trunk",
@@ -829,7 +866,6 @@ Unit answer request
     "talkgroup_tag": "",
     "talkgroup_patches": ""
   },
-  "type": "ans_req",
   "timestamp": 1686712433,
   "instance_id": "east-antenna"
 }
@@ -855,6 +891,7 @@ Unit location update
 
 ```json
 {
+  "type": "location",
   "location": {
     "sys_num": 3,
     "sys_name": "p25trunk",
@@ -867,7 +904,6 @@ Unit location update
     "talkgroup_tag": "Fire",
     "talkgroup_patches": ""
   },
-  "type": "location",
   "timestamp": 1686712458,
   "instance_id": "east-antenna"
 }
@@ -895,6 +931,7 @@ Overview of trunking messages that have been decoded.
 
 ```json
 {
+  "type": "message",
   "message": {
     "sys_num": 3,
     "sys_name": "p25trunk",
@@ -905,7 +942,6 @@ Overview of trunking messages that have been decoded.
     "opcode_desc": "Secondary Control Channel Broadcast",
     "meta": "tsbk39 secondary cc: rfid .... "
   },
-  "type": "message",
   "timestamp": 1686712507,
   "instance_id": "east-antenna"
 }
@@ -921,12 +957,12 @@ Console log messages forwarded over MQTT.
 
 ```json
 {
+    "type": "console",
     "console": {
         "time": "2023-08-07T12:07:06.327966",
         "severity": "info",
         "log_msg": "[sname]    143C    TG:      12300 (       Eastport FD Disp)    Freq: 771.581250 MHz    Rdio Scanner Upload Success - file size: 18175"
     },
-    "type": "console",
     "timestamp": 1691424426,
     "instance_id": "east-antenna"
 }
