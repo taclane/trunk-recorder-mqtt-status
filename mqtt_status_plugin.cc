@@ -289,8 +289,7 @@ public:
           {"digital_recorders", source->digital_recorder_count()},
           {"debug_recorders", source->debug_recorder_count()},
           {"sigmf_recorders", source->sigmf_recorder_count()},
-          {"silence_frames", source->get_silence_frames()},
-      };
+          {"silence_frames", source->get_silence_frames()}};
     }
 
     for (std::vector<System *>::iterator it = systems.begin(); it != systems.end(); ++it)
@@ -329,7 +328,7 @@ public:
         system_json["bandplan_high"] = sys->get_bandplan_high();
         system_json["bandplan_spacing"] = sys->get_bandplan_spacing();
         system_json["bandplan_offset"] = sys->get_bandplan_offset();
-      };
+      }
 
       config_json["systems"] += system_json;
     }
@@ -444,9 +443,9 @@ public:
 
       nlohmann::ordered_json unit_json = get_unit_tg_json(call->get_system(), stat_node.get<long>("srcId"), stat_node.get<long>("talkgroup"));
       unit_json["call_num"] = stat_node.get<int>("callNum");
-      unit_json["start_time"] = stat_node.get<long>("startTime");
       unit_json["freq"] = stat_node.get<double>("freq");
       unit_json["encrypted"] = stat_node.get<bool>("encrypted");
+      unit_json["start_time"] = stat_node.get<long>("startTime");
 
       send_json(unit_json, "call", "call", topic_unit + "/" + stat_node.get<std::string>("shortName"), false);
     };
@@ -462,6 +461,7 @@ public:
   //   MQTT: topic_unit/shortname/end
   int call_end(Call_Data_t call_info) override
   {
+    System *sys = find_system(call_info.sys_num);
     std::string patch_string = patches_to_str(call_info.patched_talkgroups);
 
     if (unit_enabled)
@@ -473,59 +473,72 @@ public:
       BOOST_FOREACH (auto &transmission, call_info.transmission_list)
       {
         nlohmann::ordered_json unit_json = {
-            {"call_num", call_info.call_num},
             {"sys_num", call_info.sys_num},
             {"sys_name", call_info.short_name},
             {"unit", transmission.source},
             {"unit_alpha_tag", source_list[transmission_num].tag},
-            {"start_time", transmission.start_time},
-            {"stop_time", transmission.stop_time},
-            {"sample_count", transmission.sample_count},
-            {"spike_count", transmission.spike_count},
-            {"error_count", transmission.error_count},
-            {"freq", call_info.freq},
-            {"length", round_float(transmission.length)},
-            {"transmission_filename", transmission.filename},
-            {"call_filename", call_info.filename},
-            {"position", round_float(source_list[transmission_num].position)},
             {"talkgroup", call_info.talkgroup},
             {"talkgroup_alpha_tag", call_info.talkgroup_alpha_tag},
             {"talkgroup_description", call_info.talkgroup_description},
             {"talkgroup_group", call_info.talkgroup_group},
             {"talkgroup_tag", call_info.talkgroup_tag},
             {"talkgroup_patches", patch_string},
-            {"encrypted", call_info.encrypted},
+            {"call_num", call_info.call_num},
+            {"freq", call_info.freq},
+            {"position", round_float(source_list[transmission_num].position)},
+            {"length", round_float(transmission.length)},
             {"emergency", source_list[transmission_num].emergency},
-            {"signal_system", source_list[transmission_num].signal_system}};
+            {"encrypted", call_info.encrypted},
+            {"start_time", transmission.start_time},
+            {"stop_time", transmission.stop_time},
+            {"error_count", transmission.error_count},
+            {"spike_count", transmission.spike_count},
+            {"sample_count", transmission.sample_count}};
+        //{"signal_system", source_list[transmission_num].signal_system},
+        //{"transmission_filename", transmission.filename},
+        //{"call_filename", call_info.filename}};
         send_json(unit_json, "end", "end", topic_unit + "/" + call_info.short_name.c_str(), false);
         transmission_num++;
       }
     }
 
     nlohmann::ordered_json call_json = {
+        {"id", boost::lexical_cast<std::string>(call_info.sys_num) + "_" + boost::lexical_cast<std::string>(call_info.talkgroup) + "_" + boost::lexical_cast<std::string>(call_info.start_time)},
         {"call_num", call_info.call_num},
         {"sys_num", call_info.sys_num},
         {"sys_name", call_info.short_name},
-        {"start_time", call_info.start_time},
-        {"stop_time", call_info.stop_time},
-        {"length", round_float(call_info.length)},
-        {"process_call_time", call_info.process_call_time},
-        {"retry_attempt", call_info.retry_attempt},
-        {"error_count", call_info.error_count},
-        {"spike_count", call_info.spike_count},
         {"freq", call_info.freq},
-        {"encrypted", call_info.encrypted},
-        {"emergency", call_info.emergency},
-        {"tdma_slot", call_info.tdma_slot},
-        {"phase2_tdma", call_info.phase2_tdma},
+        {"unit", call_info.transmission_source_list[0].source},
+        {"unit_alpha_tag", call_info.transmission_source_list[0].tag},
         {"talkgroup", call_info.talkgroup},
         {"talkgroup_alpha_tag", call_info.talkgroup_alpha_tag},
         {"talkgroup_description", call_info.talkgroup_description},
         {"talkgroup_group", call_info.talkgroup_group},
         {"talkgroup_tag", call_info.talkgroup_tag},
         {"talkgroup_patches", patch_string},
+        {"elapsed", call_info.stop_time - call_info.start_time},
+        {"length", round_float(call_info.length)},
+        {"call_state", -1},
+        {"call_state_type", "COMPLETED"},
+        {"mon_state", 0},
+        {"mon_state_type", "UNSPECIFIED"},
         {"audio_type", call_info.audio_type},
-    };
+        {"phase2_tdma", call_info.phase2_tdma},
+        {"tdma_slot", call_info.tdma_slot},
+        {"analog", ((call_info.audio_type == "analog") ? true : false)},
+        {"rec_num", -1},
+        {"src_num", -1},
+        {"rec_state", 6},
+        {"rec_state_type", "STOPPED"},
+        {"conventional", ((sys->get_system_type()).find("conventional") == std::string::npos ? false : true)},
+        {"encrypted", call_info.encrypted},
+        {"emergency", call_info.emergency},
+        {"start_time", call_info.start_time},
+        {"stop_time", call_info.stop_time},
+        {"process_call_time", call_info.process_call_time},
+        {"error_count", call_info.error_count},
+        {"spike_count", call_info.spike_count},
+        {"retry_attempt", call_info.retry_attempt}};
     return send_json(call_json, "call", "call_end", topic_status, false);
   }
 
@@ -776,7 +789,7 @@ public:
   }
 
   // generate_client_id()
-  //   Return a unique-enough client_id based on a simple crc of broker address and topic
+  //   Return a unique-enough client_id based on a crc of broker address/topic (tr-status-abcd1234)
   std::string generate_client_id()
   {
     std::string prefix = "tr-status-";
@@ -824,6 +837,13 @@ public:
     return patch_string;
   }
 
+  // find_system()
+  //   Find a system by its id number and return a pointer.
+  System *find_system(int sys_num)
+  {
+    return tr_systems[sys_num];
+  }
+
   // get_recorder_json()
   //   Return a JSON object for a recorder.
   nlohmann::ordered_json get_recorder_json(Recorder *recorder)
@@ -854,23 +874,26 @@ public:
     nlohmann::ordered_json call_json = {
         {"id", stat_node.get<std::string>("id")},
         {"call_num", stat_node.get<long>("callNum")},
-        {"freq", stat_node.get<double>("freq")},
         {"sys_num", stat_node.get<int>("sysNum")},
         {"sys_name", stat_node.get<std::string>("shortName")},
+        {"freq", stat_node.get<double>("freq")},
+        {"unit", stat_node.get<long>("srcId")},
+        {"unit_alpha_tag", call->get_system()->find_unit_tag(stat_node.get<long>("srcId"))},
         {"talkgroup", stat_node.get<int>("talkgroup")},
         {"talkgroup_alpha_tag", talkgroup_json["talkgroup_alpha_tag"]},
         {"talkgroup_description", talkgroup_json["talkgroup_description"]},
         {"talkgroup_group", talkgroup_json["talkgroup_group"]},
         {"talkgroup_tag", talkgroup_json["talkgroup_tag"]},
-        {"unit", stat_node.get<long>("srcId")},
-        {"unit_alpha_tag", call->get_system()->find_unit_tag(stat_node.get<long>("srcId"))},
+        {"talkgroup_patches", talkgroup_json["talkgroup_patches"]},
         {"elapsed", stat_node.get<long>("elapsed")},
         {"length", round_float(stat_node.get<double>("length"))},
         {"call_state", stat_node.get<int>("state")},
         {"call_state_type", tr_state[stat_node.get<int>("state")]},
         {"mon_state", stat_node.get<int>("monState")},
         {"mon_state_type", mon_state[stat_node.get<int>("monState")]},
-        {"phase2", stat_node.get<bool>("phase2")},
+        {"audio_type", "digital"},
+        {"phase2_tdma", stat_node.get<bool>("phase2")},
+        {"tdma_slot", call->get_tdma_slot()},
         {"analog", stat_node.get<bool>("analog", false)},
         {"rec_num", stat_node.get<int>("recNum", -1)},
         {"src_num", stat_node.get<int>("srcNum", -1)},
@@ -879,7 +902,14 @@ public:
         {"conventional", stat_node.get<bool>("conventional")},
         {"encrypted", stat_node.get<bool>("encrypted")},
         {"emergency", stat_node.get<bool>("emergency")},
+        {"start_time", stat_node.get<long>("startTime")},
         {"stop_time", stat_node.get<long>("stopTime")}};
+
+    if (call->get_is_analog())
+      call_json["audio_type"] = "analog";
+    else if (call->get_phase2_tdma())
+      call_json["audio_type"] = "digital tdma";
+
     return call_json;
   }
 
@@ -918,7 +948,6 @@ public:
   nlohmann::ordered_json get_unit_tg_json(System *sys, long source_id, long talkgroup_num)
   {
     json tg_json = get_tg_json(sys, talkgroup_num);
-    std::string patch_string = patches_to_str(sys->get_talkgroup_patch(talkgroup_num));
 
     nlohmann::ordered_json unit_tg_json = {
         {"sys_num", sys->get_sys_num()},
@@ -930,22 +959,24 @@ public:
         {"talkgroup_description", tg_json["talkgroup_description"]},
         {"talkgroup_group", tg_json["talkgroup_group"]},
         {"talkgroup_tag", tg_json["talkgroup_tag"]},
-        {"talkgroup_patches", patch_string}};
+        {"talkgroup_patches", tg_json["talkgroup_patches"]}};
     return unit_tg_json;
   }
 
   // get_tg_json()
-  //   Return a JSON object for talkgroup. Returns "" if TG meta is not found.
+  //   Return a JSON object for talkgroup and patches. Returns "" if TG meta is not found.
   json get_tg_json(System *sys, long talkgroup_num)
   {
     Talkgroup *tg = sys->find_talkgroup(talkgroup_num);
+    std::string patch_string = patches_to_str(sys->get_talkgroup_patch(talkgroup_num));
 
     json tg_json = {
         {"talkgroup", talkgroup_num},
         {"talkgroup_alpha_tag", ""},
         {"talkgroup_description", ""},
         {"talkgroup_group", ""},
-        {"talkgroup_tag", ""}};
+        {"talkgroup_tag", ""},
+        {"talkgroup_patches", patch_string}};
 
     if (tg != NULL)
     {
@@ -973,8 +1004,8 @@ public:
     json status_msg = {
         {"status", "connected"},
         {"instance_id", tr_instance_id},
-        {"client_id", mqtt_client_id},
-    };
+        {"client_id", mqtt_client_id}};
+
     mqtt::message_ptr conn_msg = mqtt::message_ptr_builder()
                                      .topic(topic_lwt)
                                      .payload(status_msg.dump())
@@ -1041,13 +1072,13 @@ public:
     if (mqtt_connected == false)
       return 0;
 
+    // Assemble the MQTT message
     nlohmann::ordered_json payload = {
         {"type", type},
         {name, data},
         {"timestamp", time(NULL)},
         {"instance_id", tr_instance_id}};
 
-    // Assemble the MQTT message
     mqtt::message_ptr pubmsg = mqtt::message_ptr_builder()
                                    .topic(object_topic + "/" + type)
                                    .payload(payload.dump())
