@@ -172,6 +172,9 @@ endif()
 
 ADD_DEFINITIONS(-DBOOST_ALL_DYN_LINK)
 ADD_DEFINITIONS(-DBOOST_BIND_GLOBAL_PLACEHOLDERS)
+if(NOT EXISTS /usr/include/spdlog/fmt/bundled)
+  ADD_DEFINITIONS(-DSPDLOG_FMT_EXTERNAL)
+endif()
 add_definitions(-DGNURADIO_VERSION=${GNURADIO_VERSION})
 
 ########################################################################
