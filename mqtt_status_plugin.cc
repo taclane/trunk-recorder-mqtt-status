@@ -493,10 +493,8 @@ public:
             {"stop_time", transmission.stop_time},
             {"error_count", transmission.error_count},
             {"spike_count", transmission.spike_count},
-            {"sample_count", transmission.sample_count}};
-        //{"signal_system", source_list[transmission_num].signal_system},
-        //{"transmission_filename", transmission.filename},
-        //{"call_filename", call_info.filename}};
+            {"sample_count", transmission.sample_count},
+            {"transmission_filename", transmission.filename}};
         send_json(unit_json, "end", "end", topic_unit + "/" + call_info.short_name.c_str(), false);
         transmission_num++;
       }
@@ -538,7 +536,12 @@ public:
         {"process_call_time", call_info.process_call_time},
         {"error_count", call_info.error_count},
         {"spike_count", call_info.spike_count},
-        {"retry_attempt", call_info.retry_attempt}};
+        {"retry_attempt", call_info.retry_attempt},
+        {"call_filename", call_info.filename}};
+    
+    if (call_info.compress_wav) {
+      call_json["call_filename"] = call_info.converted;
+    }
     return send_json(call_json, "call", "call_end", topic_status, false);
   }
 
