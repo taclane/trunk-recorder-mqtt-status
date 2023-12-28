@@ -553,7 +553,9 @@ Sent after trunk-recorder completes recording a call.
     "process_call_time": 1701185029,
     "error_count": 0,
     "spike_count": 0,
-    "retry_attempt": 0
+    "retry_attempt": 0,
+    "call_filename": "/data/trunk-recorder/p25trunk/2023/12/28/401-1701185024_859200000.1-call_106.m4a"
+
   },
   "timestamp": 1701185029,
   "instance_id": "east-antenna"
@@ -578,6 +580,7 @@ call
               + rec_state
               + rec_state_type
               + conventional
+              + call_filename
 ```
 
 ## plugin_status
@@ -670,7 +673,9 @@ Call end information by transmission. Reports information for conventional units
     "stop_time": 1701185024,
     "error_count": 0,
     "spike_count": 0,
-    "sample_count": 2880
+    "sample_count": 2880,
+    "transmission_filename": "/dev/shm/p25trunk/401-1701185024_850000000.1.wav"
+
   },
   "timestamp": 1701185029,
   "instance_id": "east-antenna"
@@ -686,7 +691,7 @@ call
   system     -> sys_name
   unit_alpha -> unit_alpha_tag
               + talkgroup_tag
-              - transmission_filename
+              + transmission_filename
               - call_filename
               - signal_system
 ```
