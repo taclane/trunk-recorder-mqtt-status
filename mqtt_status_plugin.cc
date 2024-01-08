@@ -310,7 +310,7 @@ public:
           {"record_unkown", sys->get_record_unknown()},
           {"call_log", sys->get_call_log()}};
 
-      if ((sys->get_system_type() == "conventional") || (sys->get_system_type() == "conventionalP25"))
+      if (sys->get_system_type().find("conventional") != std::string::npos)
       {
         system_json["channels"] = sys->get_channels();
       }
