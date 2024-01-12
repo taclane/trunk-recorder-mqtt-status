@@ -538,8 +538,9 @@ public:
         {"spike_count", call_info.spike_count},
         {"retry_attempt", call_info.retry_attempt},
         {"call_filename", call_info.filename}};
-    
-    if (call_info.compress_wav) {
+
+    if (call_info.compress_wav)
+    {
       call_json["call_filename"] = call_info.converted;
     }
     return send_json(call_json, "call", "call_end", topic_status, false);
@@ -1045,15 +1046,15 @@ public:
     // Open a connection to the broker, set mqtt_connected true if successful, publish a connect message
     mqtt_client = new mqtt::async_client(mqtt_broker, mqtt_client_id, tr_config->capture_dir + "/store");
     mqtt_client->set_callback(*this);
-    
+
     try
     {
       BOOST_LOG_TRIVIAL(info) << log_prefix << "Connecting...";
       mqtt::token_ptr conntok = mqtt_client->connect(connOpts);
       BOOST_LOG_TRIVIAL(info) << log_prefix << "Waiting for the connection...";
       conntok->wait();
-      //BOOST_LOG_TRIVIAL(info) << log_prefix << "OK";
-      //mqtt_connected = true;
+      // BOOST_LOG_TRIVIAL(info) << log_prefix << "OK";
+      // mqtt_connected = true;
       mqtt_client->publish(conn_msg);
     }
     catch (const mqtt::exception &exc)
@@ -1106,7 +1107,7 @@ public:
   // Paho mqtt::callbacks.
   // connection_lost()
   //   Paho MQTT: This method is called if the connection to the broker is lost.
-  void connection_lost(const string &cause) 
+  void connection_lost(const string &cause)
   {
     BOOST_LOG_TRIVIAL(error) << log_prefix << "Lost connection to broker: " << mqtt_broker << " " << cause;
     mqtt_connected = false;
@@ -1114,7 +1115,7 @@ public:
 
   // connected()
   //   Paho MQTT: This method is called if the connection to the broker is activated.
-  void connected(const string &cause) 
+  void connected(const string &cause)
   {
     BOOST_LOG_TRIVIAL(info) << log_prefix << "Connected to broker: " << mqtt_broker << " " << cause;
     mqtt_connected = true;
