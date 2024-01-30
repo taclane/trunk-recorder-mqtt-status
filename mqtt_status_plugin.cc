@@ -662,24 +662,29 @@ public:
     mqtt_qos = config_data.value("qos", 0);
     mqtt_client_id = config_data.value("client_id", generate_client_id());
 
+    // Enable topics and clean up stray '/' if encountered
+    if (topic_status != "")
+    {
+      if (topic_status.back() == '/')
+        topic_status.erase(topic_status.size() - 1);
+    }
+
     if (topic_unit != "")
+    {
       unit_enabled = true;
+      if (topic_unit.back() == '/')
+        topic_unit.erase(topic_unit.size() - 1);
+    }
 
     if (topic_message != "")
+    {
       message_enabled = true;
+      if (topic_message.back() == '/')
+        topic_message.erase(topic_message.size() - 1);
+    }
 
     if (console_enabled == true)
       topic_console = topic_status + "/trunk_recorder";
-
-    // Remove any trailing slashes from topics
-    if (topic_status.back() == '/')
-      topic_status.erase(topic_status.size() - 1);
-
-    if (topic_unit.back() == '/')
-      topic_unit.erase(topic_unit.size() - 1);
-
-    if (topic_message.back() == '/')
-      topic_message.erase(topic_message.size() - 1);
 
     // Print plugin startup info
     BOOST_LOG_TRIVIAL(info) << log_prefix << "Broker:                 " << mqtt_broker;
