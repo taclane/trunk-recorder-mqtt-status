@@ -13,7 +13,8 @@
 #include <regex>
 #include <mqtt/client.h>
 #include <trunk-recorder/source.h>
-#include <trunk-recorder/json.hpp>
+#include <json.hpp>
+// #include <trunk-recorder/json.hpp>
 #include <trunk-recorder/plugin_manager/plugin_api.h>
 #include <boost/date_time/posix_time/posix_time.hpp> //time_formatters.hpp>
 #include <boost/dll/alias.hpp>                       // for BOOST_DLL_ALIAS
