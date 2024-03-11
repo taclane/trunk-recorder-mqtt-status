@@ -538,6 +538,9 @@ public:
         {"error_count", call_info.error_count},
         {"spike_count", call_info.spike_count},
         {"retry_attempt", call_info.retry_attempt},
+        {"freq_error", call_info.freq_error},
+        {"signal", call_info.signal},
+        {"noise", call_info.noise},
         {"call_filename", call_info.filename}};
 
     if (call_info.compress_wav)
