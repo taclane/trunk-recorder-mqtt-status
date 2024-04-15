@@ -566,7 +566,7 @@ public:
     std::string audio_base64 = file_to_base64(call_info.filename);
     std::string filename = get_filename_from_path(call_info.filename);
 
-    call_info.json["call_filename"] = filename;
+    call_info.call_json["call_filename"] = filename;
 
     // Prepare the JSON object
     nlohmann::ordered_json call_json = {
