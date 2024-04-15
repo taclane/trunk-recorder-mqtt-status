@@ -595,6 +595,7 @@ Sent after trunk-recorder completes recording a call. Includes audio WAV as base
   "call": {
     "audio_wav_base64": "ABgAwP9AAM...=",
     "metadata": {
+      "call_filename": "300-1713207802_154875000.0-call_12.wav",
       "freq": 154875000,
       "freq_error": -342,
       "signal": -23,
