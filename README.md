@@ -74,7 +74,7 @@ sudo make install
 | username      |          |                      | string     | If a username is required for the broker, add it here.                                                                                                                                   |
 | password      |          |                      | string     | If a password is required for the broker, add it here.                                                                                                                                   |
 | client_id     |          | tr-status-xxxxxxxx   | string     | Override the client_id generated for this connection to the MQTT broker.                                                                                                                 |
-| mqtt_audio    |          | false                | true/false | Optional setting to report audio wav in base64 over MQTT.                                                                                                                                |
+| mqtt_audio    |          | false                | true/false | Optional setting to report audio wav in base64 and call metadata over MQTT.                                                                                                              |
 | qos           |          | 0                    | int        | Set the MQTT message [QOS level](https://www.eclipse.org/paho/files/mqttdoc/MQTTClient/html/qos.html)                                                                                    |
 
 **Trunk-Recorder options:**
