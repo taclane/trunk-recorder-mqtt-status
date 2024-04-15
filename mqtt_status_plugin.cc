@@ -571,12 +571,7 @@ public:
           {"metadata", call_info.call_json}
     };
 
-    // Here, add your code to send or process this JSON object
-    // For example, sending it via MQTT or logging it
-    std::cout << "JSON output: " << call_json.dump(4) << std::endl;
-
-
-    return send_json(call_json, "call", "audio", topic_status, false);
+    return send_json(call_json, "data", "audio", topic_status, false);
   }
 
 
@@ -731,7 +726,7 @@ public:
     BOOST_LOG_TRIVIAL(info) << log_prefix << "Trunk Message Topic:    " << ((topic_message == "") ? "[disabled]" : topic_message + "/shortname");
     BOOST_LOG_TRIVIAL(info) << log_prefix << "Console Message Topic:  " << ((console_enabled == false) ? "[disabled]" : topic_console + "/console");
     BOOST_LOG_TRIVIAL(info) << log_prefix << "MQTT QOS:               " << mqtt_qos;
-    BOOST_LOG_TRIVIAL(info) << log_prefix << "MQTT Audio Files:       " << ((mqtt_audio == false) ? "[disabled]" : topic_status + "/feed/audio");
+    BOOST_LOG_TRIVIAL(info) << log_prefix << "MQTT Audio Files:       " << ((mqtt_audio == false) ? "[disabled]" : topic_status + "/audio");
     return 0;
   }
 
