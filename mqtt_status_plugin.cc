@@ -5,6 +5,7 @@
 
 #include <time.h>
 #include <vector>
+#include <fstream>
 #include <iostream>
 #include <cstdlib>
 #include <string>
@@ -16,6 +17,8 @@
 #include <json.hpp>
 // #include <trunk-recorder/json.hpp>
 #include <trunk-recorder/plugin_manager/plugin_api.h>
+#include <boost/archive/iterators/base64_from_binary.hpp>
+#include <boost/archive/iterators/transform_width.hpp>
 #include <boost/date_time/posix_time/posix_time.hpp> //time_formatters.hpp>
 #include <boost/dll/alias.hpp>                       // for BOOST_DLL_ALIAS
 #include <boost/property_tree/json_parser.hpp>
@@ -54,6 +57,7 @@ class Mqtt_Status : public Plugin_Api, public virtual mqtt::callback
   bool unit_enabled = false;
   bool message_enabled = false;
   bool console_enabled = false;
+  bool mqtt_audio = false;
   std::string log_prefix;
   time_t call_resend_time = time(NULL);
 
@@ -547,8 +551,34 @@ public:
     {
       call_json["call_filename"] = call_info.converted;
     }
+
+    if (mqtt_audio)
+    {
+        send_audio(call_info)
+    }
+
     return send_json(call_json, "call", "call_end", topic_status, false);
   }
+
+  int send_audio(Call_Data_t call_info) {
+
+    // Encode the audio file to base64
+    std::string audio_base64 = file_to_base64(call_info.filename);
+
+    // Prepare the JSON object
+    nlohmann::ordered_json call_json = {
+          {"audio", audio_base64},
+          {"metadata", call_info.call_json}
+    };
+
+    // Here, add your code to send or process this JSON object
+    // For example, sending it via MQTT or logging it
+    std::cout << "JSON output: " << call_json.dump(4) << std::endl;
+
+
+    return send_json(call_json, "call", "audio", topic_status, false);
+  }
+
 
   // unit_registration()
   //   Unit registration on a system (on)
@@ -664,6 +694,7 @@ public:
     topic_message = config_data.value("message_topic", "");
     console_enabled = config_data.value("console_logs", false);
     mqtt_qos = config_data.value("qos", 0);
+    mqtt_audio = config_data.value("mqtt_audio", false);
     mqtt_client_id = config_data.value("client_id", generate_client_id());
 
     // Enable topics and clean up stray '/' if encountered
@@ -700,6 +731,7 @@ public:
     BOOST_LOG_TRIVIAL(info) << log_prefix << "Trunk Message Topic:    " << ((topic_message == "") ? "[disabled]" : topic_message + "/shortname");
     BOOST_LOG_TRIVIAL(info) << log_prefix << "Console Message Topic:  " << ((console_enabled == false) ? "[disabled]" : topic_console + "/console");
     BOOST_LOG_TRIVIAL(info) << log_prefix << "MQTT QOS:               " << mqtt_qos;
+    BOOST_LOG_TRIVIAL(info) << log_prefix << "MQTT Audio Files:       " << ((mqtt_audio == false) ? "[disabled]" : topic_status + "/feed/audio");
     return 0;
   }
 
@@ -999,6 +1031,27 @@ public:
       tg_json["talkgroup_tag"] = tg->tag;
     }
     return tg_json;
+  }
+
+  std::string file_to_base64(const std::string& filename) {
+    std::ifstream file(filename, std::ios::binary);
+    if (!file.is_open()) {
+      throw std::runtime_error("Could not open file " + filename);
+    }
+
+    // Read the file into a vector
+    std::vector<unsigned char> buffer(std::istreambuf_iterator<char>(file), {});
+
+    // Base64 encode
+    using namespace boost::archive::iterators;
+    using It = base64_from_binary<transform_width<std::vector<unsigned char>::const_iterator, 6, 8>>;
+    auto base64_str = std::string(It(buffer.begin()), It(buffer.end()));
+
+    // Pad with '=' characters if necessary
+    size_t num_pad_chars = (3 - buffer.size() % 3) % 3;
+    base64_str.append(num_pad_chars, '=');
+
+    return base64_str;
   }
 
   // ********************************
