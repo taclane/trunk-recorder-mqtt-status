@@ -567,11 +567,11 @@ public:
 
     // Prepare the JSON object
     nlohmann::ordered_json call_json = {
-          {"audio", audio_base64},
+          {"audio_wav_base64", audio_base64},
           {"metadata", call_info.call_json}
     };
 
-    return send_json(call_json, "data", "audio", topic_status, false);
+    return send_json(call_json, "call", "audio", topic_status, false);
   }
 
 

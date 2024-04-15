@@ -24,6 +24,7 @@
         "broker": "tcp://io.adafruit.com:1883",
         "topic": "robotastic/feeds",
         "unit_topic": "robotastic/units",
+        "mqtt_audio": false,
         "username": "robotastic",
         "password": ""
     }]
