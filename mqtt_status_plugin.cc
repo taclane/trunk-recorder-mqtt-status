@@ -560,7 +560,7 @@ public:
     return send_json(call_json, "call", "call_end", topic_status, false);
   }
 
-  int send_audio(Call_Data_t call_info) {
+  int send_audio(call_info) {
 
     // Encode the audio file to base64
     std::string audio_base64 = file_to_base64(call_info.filename);
