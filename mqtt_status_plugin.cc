@@ -554,7 +554,7 @@ public:
 
     if (mqtt_audio)
     {
-        send_audio(call_info)
+        send_audio(call_info);
     }
 
     return send_json(call_json, "call", "call_end", topic_status, false);
