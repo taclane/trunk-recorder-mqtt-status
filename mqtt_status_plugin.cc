@@ -564,6 +564,9 @@ public:
 
     // Encode the audio file to base64
     std::string audio_base64 = file_to_base64(call_info.filename);
+    std::string filename = get_filename_from_path(call_info.filename);
+
+    call_info.json["call_filename"] = filename;
 
     // Prepare the JSON object
     nlohmann::ordered_json call_json = {
@@ -1047,6 +1050,13 @@ public:
     base64_str.append(num_pad_chars, '=');
 
     return base64_str;
+  }
+
+  std::string get_filename_from_path(const std::string& path) {
+    const char* filename = strrchr(path.c_str(), '/');
+    if (!filename)
+      filename = strrchr(path.c_str(), '\\');
+    return filename ? filename + 1 : path;
   }
 
   // ********************************
