@@ -15,11 +15,19 @@ Requires trunk-recorder 4.7 (commit 837a057 14 NOV 2023) or later, and Paho MQTT
 
 ## Install
 
-1. **Build and install the current version of Trunk Recorder** following these [instructions](https://github.com/robotastic/trunk-recorder/blob/master/docs/INSTALL-LINUX.md). Make sure you do a `sudo make install` at the end to install the Trunk Recorder binary and libraries system-wide. The plugin will be built against these libraries.
-
+1. **Clone the 5.0 RC release branch of Trunk Recorder** following these [instructions](https://github.com/robotastic/trunk-recorder/blob/master/docs/INSTALL-LINUX.md).
+   
 2. **Install the Paho MQTT C & C++ Libraries**.
 
-&emsp; _Install Paho MQTT C_
+&emsp; If your package manager provides recent Paho MQTT libraries, e.g:
+
+```bash
+sudo apt install libpaho-mqtt-dev libpaho-mqttpp-dev
+```
+
+&emsp; If not, you may build and install these libraries from source:
+
+&emsp; - _Install Paho MQTT C_
 
 ```bash
 git clone https://github.com/eclipse/paho.mqtt.c.git
@@ -30,7 +38,7 @@ sudo cmake --build build/ --target install
 sudo ldconfig
 ```
 
-&emsp; _Install Paho MQTT C++_
+&emsp; - _Install Paho MQTT C++_
 
 ```bash
 git clone https://github.com/eclipse/paho.mqtt.cpp
@@ -41,24 +49,19 @@ sudo cmake --build build/ --target install
 sudo ldconfig
 ```
 
-&emsp; Alternatively, if your package manager provides recent Paho MQTT libraries:
-
-```bash
-sudo apt install libpaho-mqtt-dev libpaho-mqttpp-dev
-```
-
 3. **Build and install the plugin:**
 
-&emsp; Plugin repos should be cloned in a location other than the trunk-recorder source dir.
+&emsp; This pluigin source should be cloned into the `/user_plugins` directory of the Trunk Recorder 5.0+ source tree.  It will be built and installed along with Trunk Recorder.
 
 ```bash
-mkdir build
-cd build
-cmake ..
+cd [your trunk-recorder github source directory]
+cd user_plugins
+git clone https://github.com/taclane/trunk-recorder-mqtt-status --branch test/autobuild
+cd [your trunk-recorder build directory]
 sudo make install
 ```
 
-&emsp; **IMPORTANT NOTE:** To avoid SEGFAULTs or other errors, plugins should be rebuilt after every new release of trunk-recorder.
+&emsp; **NOTE:** Plugins will be automatically built and installed with Trunk Recorder.  To update either Trunk Recorder or a plugin, simply `cd` into the appropriate git directory and `git pull`.  Refer to the above instructions to `make install` any updates.
 
 ## Configure
 
