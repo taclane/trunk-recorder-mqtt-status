@@ -574,7 +574,21 @@ public:
           {"metadata", call_info.call_json}
     };
 
-    return send_json(call_json, "call", "audio", topic_status, false);
+
+    int ret = send_json(call_json, "call", "audio", topic_status, false);
+    
+    int size = call_json.dump().size();    
+    std::string loghdr = log_header(call_info.short_name,call_info.call_num,call_info.talkgroup_display,call_info.freq);
+
+    if (ret == 0) {
+      BOOST_LOG_TRIVIAL(info) << loghdr << "MQTT Call Upload Success - packet size: " << size;
+      return 0;
+    } 
+    else 
+    {
+      BOOST_LOG_TRIVIAL(error) << loghdr << "MQTT Call Upload error - packet size: " << size;
+      return 1;
+    }
   }
 
 
@@ -728,8 +742,8 @@ public:
     BOOST_LOG_TRIVIAL(info) << log_prefix << "Unit Topic:             " << ((topic_unit == "") ? "[disabled]" : topic_unit + "/shortname");
     BOOST_LOG_TRIVIAL(info) << log_prefix << "Trunk Message Topic:    " << ((topic_message == "") ? "[disabled]" : topic_message + "/shortname");
     BOOST_LOG_TRIVIAL(info) << log_prefix << "Console Message Topic:  " << ((console_enabled == false) ? "[disabled]" : topic_console + "/console");
-    BOOST_LOG_TRIVIAL(info) << log_prefix << "MQTT QOS:               " << mqtt_qos;
     BOOST_LOG_TRIVIAL(info) << log_prefix << "MQTT Audio Files:       " << ((mqtt_audio == false) ? "[disabled]" : topic_status + "/audio");
+    BOOST_LOG_TRIVIAL(info) << log_prefix << "MQTT QOS:               " << mqtt_qos;
     return 0;
   }
 
@@ -1167,6 +1181,7 @@ public:
     catch (const mqtt::exception &exc)
     {
       BOOST_LOG_TRIVIAL(error) << log_prefix << exc.what() << endl;
+      return 1;
     }
     return 0;
   }
