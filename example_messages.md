@@ -554,6 +554,9 @@ Sent after trunk-recorder completes recording a call.
     "error_count": 0,
     "spike_count": 0,
     "retry_attempt": 0,
+    "freq_error": -40,
+    "signal": 999,
+    "noise": 999,
     "call_filename": "/data/trunk-recorder/p25trunk/2023/12/28/401-1701185024_859200000.1-call_106.m4a"
 
   },
