@@ -68,7 +68,7 @@ sudo make install
 **Plugin options:**
 
 | Key           | Required | Default Value        | Type       | Description                                                                                                                                                                              |
-| ------------- | :------: | -------------------- | ---------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+|---------------| :------: |----------------------|------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | broker        |    ✓     | tcp://localhost:1883 | string     | The URL for the MQTT Message Broker. It should include the protocol used: **tcp**, **ssl**, **ws**, **wss** and the port, which is generally 1883 for tcp, 8883 for ssl, and 443 for ws. |
 | topic         |    ✓     |                      | string     | This is the base MQTT topic. The plugin will create subtopics for the different status messages.                                                                                         |
 | unit_topic    |          |                      | string     | Optional topic to report unit stats over MQTT.                                                                                                                                           |
@@ -77,6 +77,7 @@ sudo make install
 | username      |          |                      | string     | If a username is required for the broker, add it here.                                                                                                                                   |
 | password      |          |                      | string     | If a password is required for the broker, add it here.                                                                                                                                   |
 | client_id     |          | tr-status-xxxxxxxx   | string     | Override the client_id generated for this connection to the MQTT broker.                                                                                                                 |
+| mqtt_audio    |          | false                | true/false | Optional setting to report audio wav in base64 and call metadata over MQTT.                                                                                                              |
 | qos           |          | 0                    | int        | Set the MQTT message [QOS level](https://www.eclipse.org/paho/files/mqttdoc/MQTTClient/html/qos.html)                                                                                    |
 
 **Trunk-Recorder options:**
@@ -100,6 +101,8 @@ See the included [config.json](./config.json) for an example how to load this pl
         "username": "robotastic",
         "password": "",
         "console_logs": true,
+        "mqtt_audio": false,
+        "mqtt_qos": 0,
     }]
 ```
 
@@ -114,7 +117,7 @@ If the plugin cannot be found, or it is being run from a different location, it 
 The plugin will provide the following messages to the MQTT broker depending on configured topics.
 
 | Topic                   | Sub-Topic                                          | Retained | Description\*                                                      |
-| ----------------------- | -------------------------------------------------- | :------: | ------------------------------------------------------------------ |
+|-------------------------|----------------------------------------------------| :------: |--------------------------------------------------------------------|
 | topic                   | [rates](./example_messages.md#rates)               |          | Control channel decode rates                                       |
 | topic                   | [config](./example_messages.md#config)             |    ✓     | Trunk-recorder config information                                  |
 | topic                   | [systems](./example_messages.md#systems)           |    ✓     | List of configured systems                                         |
@@ -124,6 +127,7 @@ The plugin will provide the following messages to the MQTT broker depending on c
 | topic                   | [recorder](./example_messages.md#recorder)         |          | Recorder status changes                                            |
 | topic                   | [call_start](./example_messages.md#call_start)     |          | New call                                                           |
 | topic                   | [call_end](./example_messages.md#call_end)         |          | Completed call                                                     |
+| topic                   | [audio](./example_message.md#audio)                |          | Audio and metadata of completed call                               |
 | topic/trunk_recorder    | [status](./example_messages.md#plugin_status)      |    ✓     | Plugin status, sent on startup or when the broker loses connection |
 | topic/trunk_recorder    | [console](./example_messages.md#console_logs)      |          | Trunk-Recorder console log messages                                |
 | unit_topic/shortname    | [call](./example_messages.md#call)                 |          | Channel grants                                                     |
@@ -201,7 +205,7 @@ mqtt {
     keepalive_multiplier = 1.25
 ...
 ```
-[Editing `/etc/nanomq.conf`](https://nanomq.io/docs/en/latest/config-description/mqtt.html) and increasing the packet size to 100 KB or more should be sufficient for MQTT messages generated by this plugin.
+[Editing `/etc/nanomq.conf`](https://nanomq.io/docs/en/latest/config-description/mqtt.html) and increasing the packet size to 100 KB or more should be sufficient for MQTT messages generated by this plugin. If `mqtt_audio` is enabled packet size will need to be raised significantly.
 
 ## Docker
 

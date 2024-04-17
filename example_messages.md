@@ -10,6 +10,7 @@
   - [recorder](#recorder)
   - [call\_start](#call_start)
   - [call\_end](#call_end)
+  - [audio](#audio)
   - [plugin\_status](#plugin_status)
 - [Unit Messages](#unit-messages)
   - [call](#call)
@@ -562,6 +563,105 @@ Sent after trunk-recorder completes recording a call.
   },
   "timestamp": 1701185029,
   "instance_id": "east-antenna"
+}
+```
+
+Changes:
+
+```
+call
+              + id
+  short_name -> sys_name
+              + sys_num
+  callNum    -> call_num
+              + elapsed
+              + call_state
+              + call_state_type
+              + mon_state
+              + mon_state_type
+              + rec_num
+              + src_num
+              + rec_state
+              + rec_state_type
+              + conventional
+              + call_filename
+```
+
+## audio
+Sent after trunk-recorder completes recording a call. Includes audio WAV as base64 encoded blob. Includes call metadata from trunk-recroder.
+
+`topic/audio`
+
+```json
+{
+  "type": "audio",
+  "call": {
+    "audio_wav_base64": "ABgAwP9AAM...=",
+    "metadata": {
+      "call_filename": "300-1713207802_154875000.0-call_12.wav",
+      "freq": 154875000,
+      "freq_error": -342,
+      "signal": -23,
+      "noise": -50,
+      "source_num": 0,
+      "recorder_num": 14,
+      "tdma_slot": 0,
+      "phase2_tdma": 0,
+      "start_time": 1713207802,
+      "stop_time": 1713207845,
+      "emergency": 0,
+      "priority": 0,
+      "mode": 0,
+      "duplex": 0,
+      "encrypted": 0,
+      "call_length": 33,
+      "talkgroup": 300,
+      "talkgroup_tag": "Chem Law Disp",
+      "talkgroup_description": "Chemung CW Police Dispatch",
+      "talkgroup_group_tag": "Law Dispatch",
+      "talkgroup_group": "Law",
+      "audio_type": "digital",
+      "short_name": "chemung-ny",
+      "freqList": [
+        {
+          "freq": 154875000,
+          "time": 1713207802,
+          "pos": 0.0,
+          "len": 3.24,
+          "error_count": 50,
+          "spike_count": 3
+        },
+        {
+          "freq": 154875000,
+          "time": 1713207806,
+          "pos": 3.24,
+          "len": 0.9,
+          "error_count": 0,
+          "spike_count": 0
+        }
+      ],
+      "srcList": [
+        {
+          "src": 104,
+          "time": 1713207802,
+          "pos": 0.0,
+          "emergency": 0,
+          "signal_system": "",
+          "tag": ""
+        },
+        {
+          "src": 139,
+          "time": 1713207806,
+          "pos": 3.24,
+          "emergency": 0,
+          "signal_system": "",
+          "tag": ""
+        }
+      ]
+    }
+  },
+  "timestamp":1713208679,
+  "instance_id":"trunk-recorder"
 }
 ```
 
