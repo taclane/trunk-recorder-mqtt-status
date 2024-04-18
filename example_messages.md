@@ -588,7 +588,9 @@ call
 ```
 
 ## audio
-Sent after trunk-recorder completes recording a call. Includes audio WAV as base64 encoded blob. Includes call metadata from trunk-recroder.
+Sent after trunk-recorder completes recording a call. Includes selected audio as base64 encoded blob and call metadata from trunk-recorder.
+
+Base64 encoding of audio generates **large** MQTT packets.  The broker must be able to process messages significantly larger than the source audio recordings. 
 
 `topic/audio`
 
@@ -597,6 +599,7 @@ Sent after trunk-recorder completes recording a call. Includes audio WAV as base
   "type": "audio",
   "call": {
     "audio_wav_base64": "ABgAwP9AAM...=",
+    "audio_m4a_base64": "",
     "metadata": {
       "call_filename": "300-1713207802_154875000.0-call_12.wav",
       "freq": 154875000,
@@ -663,27 +666,6 @@ Sent after trunk-recorder completes recording a call. Includes audio WAV as base
   "timestamp":1713208679,
   "instance_id":"trunk-recorder"
 }
-```
-
-Changes:
-
-```
-call
-              + id
-  short_name -> sys_name
-              + sys_num
-  callNum    -> call_num
-              + elapsed
-              + call_state
-              + call_state_type
-              + mon_state
-              + mon_state_type
-              + rec_num
-              + src_num
-              + rec_state
-              + rec_state_type
-              + conventional
-              + call_filename
 ```
 
 ## plugin_status
