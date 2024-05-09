@@ -763,6 +763,10 @@ public:
   //   TRUNK-RECORDER PLUGIN API: Plugin initialization; called after parse_config().
   int init(Config *config, std::vector<Source *> sources, std::vector<System *> systems) override
   {
+    // Set frequency format
+    frequency_format = config->frequency_format;
+    
+    // Set instance ID
     tr_instance_id = config->instance_id;
     if (tr_instance_id == "")
       tr_instance_id = "trunk-recorder";
