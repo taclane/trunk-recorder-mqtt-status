@@ -553,12 +553,14 @@ public:
       call_json["call_filename"] = call_info.converted;
     }
 
+    int ret = 0;
+    
     if (mqtt_audio)
     {
-      send_audio(call_info);
+      ret = send_audio(call_info);
     }
 
-    return send_json(call_json, "call", "call_end", topic_status, false);
+    return (ret || send_json(call_json, "call", "call_end", topic_status, false));
   }
 
   int send_audio(Call_Data_t call_info) {
