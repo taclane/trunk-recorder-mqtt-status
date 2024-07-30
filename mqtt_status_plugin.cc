@@ -5,6 +5,7 @@
 
 #include <time.h>
 #include <vector>
+#include <fstream>
 #include <iostream>
 #include <cstdlib>
 #include <string>
@@ -13,8 +14,11 @@
 #include <regex>
 #include <mqtt/client.h>
 #include <trunk-recorder/source.h>
-#include <trunk-recorder/json.hpp>
+#include <json.hpp>
+// #include <trunk-recorder/json.hpp>
 #include <trunk-recorder/plugin_manager/plugin_api.h>
+#include <boost/archive/iterators/base64_from_binary.hpp>
+#include <boost/archive/iterators/transform_width.hpp>
 #include <boost/date_time/posix_time/posix_time.hpp> //time_formatters.hpp>
 #include <boost/dll/alias.hpp>                       // for BOOST_DLL_ALIAS
 #include <boost/property_tree/json_parser.hpp>
@@ -53,6 +57,8 @@ class Mqtt_Status : public Plugin_Api, public virtual mqtt::callback
   bool unit_enabled = false;
   bool message_enabled = false;
   bool console_enabled = false;
+  bool mqtt_audio = false;
+  std::string mqtt_audio_type;
   std::string log_prefix;
   time_t call_resend_time = time(NULL);
 
@@ -524,8 +530,8 @@ public:
         {"phase2_tdma", call_info.phase2_tdma},
         {"tdma_slot", call_info.tdma_slot},
         {"analog", ((call_info.audio_type == "analog") ? true : false)},
-        {"rec_num", -1},
-        {"src_num", -1},
+        {"rec_num", call_info.recorder_num},
+        {"src_num", call_info.source_num},
         {"rec_state", 6},
         {"rec_state_type", "STOPPED"},
         {"conventional", ((sys->get_system_type()).find("conventional") == std::string::npos ? false : true)},
@@ -537,14 +543,66 @@ public:
         {"error_count", call_info.error_count},
         {"spike_count", call_info.spike_count},
         {"retry_attempt", call_info.retry_attempt},
+        {"freq_error", call_info.freq_error},
+        {"signal", round_float(call_info.signal)},
+        {"noise", round_float(call_info.noise)},
         {"call_filename", call_info.filename}};
 
     if (call_info.compress_wav)
     {
       call_json["call_filename"] = call_info.converted;
     }
-    return send_json(call_json, "call", "call_end", topic_status, false);
+
+    int ret = 0;
+    
+    if (mqtt_audio)
+    {
+      ret = send_audio(call_info);
+    }
+
+    return (ret || send_json(call_json, "call", "call_end", topic_status, false));
   }
+
+  int send_audio(Call_Data_t call_info) {
+    // Encode the audio file to base64
+
+    // Prepare the JSON object
+    nlohmann::ordered_json call_json = {
+        {"audio_wav_base64", ""},
+        {"audio_m4a_base64", ""},       
+        {"metadata", call_info.call_json}
+    };
+
+    // Add m4a to json if requested and available; record filename
+    if (((mqtt_audio_type == "m4a") || (mqtt_audio_type == "both")) && call_info.compress_wav)
+    {
+      call_json["audio_m4a_base64"] = file_to_base64(call_info.converted);
+      call_json["metadata"]["filename"] = get_filename_from_path(call_info.converted);;
+    }
+
+    // Add wav to json if requested; record (or override) filename
+    if ((mqtt_audio_type == "wav") || (mqtt_audio_type == "both"))
+    {
+      call_json["audio_wav_base64"] = file_to_base64(call_info.filename);
+      call_json["metadata"]["filename"] = get_filename_from_path(call_info.filename);
+    }
+
+    int ret = send_json(call_json, "call", "audio", topic_status, false);
+    
+    int size = call_json.dump().size();    
+    std::string loghdr = log_header(call_info.short_name,call_info.call_num,call_info.talkgroup_display,call_info.freq);
+
+    if (ret == 0) {
+      BOOST_LOG_TRIVIAL(info) << loghdr << "MQTT Call Upload Success - packet size: " << size;
+      return 0;
+    } 
+    else 
+    {
+      BOOST_LOG_TRIVIAL(error) << loghdr << "MQTT Call Upload error - packet size: " << size;
+      return 1;
+    }
+  }
+
 
   // unit_registration()
   //   Unit registration on a system (on)
@@ -660,6 +718,8 @@ public:
     topic_message = config_data.value("message_topic", "");
     console_enabled = config_data.value("console_logs", false);
     mqtt_qos = config_data.value("qos", 0);
+    mqtt_audio = config_data.value("mqtt_audio", false);
+    mqtt_audio_type = config_data.value("mqtt_audio_type", "wav");
     mqtt_client_id = config_data.value("client_id", generate_client_id());
 
     // Enable topics and clean up stray '/' if encountered
@@ -695,6 +755,8 @@ public:
     BOOST_LOG_TRIVIAL(info) << log_prefix << "Unit Topic:             " << ((topic_unit == "") ? "[disabled]" : topic_unit + "/shortname");
     BOOST_LOG_TRIVIAL(info) << log_prefix << "Trunk Message Topic:    " << ((topic_message == "") ? "[disabled]" : topic_message + "/shortname");
     BOOST_LOG_TRIVIAL(info) << log_prefix << "Console Message Topic:  " << ((console_enabled == false) ? "[disabled]" : topic_console + "/console");
+    BOOST_LOG_TRIVIAL(info) << log_prefix << "MQTT Audio Topic:       " << ((mqtt_audio == false) ? "[disabled]" : topic_status + "/audio");
+    BOOST_LOG_TRIVIAL(info) << log_prefix << "MQTT Audio (wav/m4a):   " << ((mqtt_audio == false) ? "[disabled]" : mqtt_audio_type);
     BOOST_LOG_TRIVIAL(info) << log_prefix << "MQTT QOS:               " << mqtt_qos;
     return 0;
   }
@@ -703,6 +765,10 @@ public:
   //   TRUNK-RECORDER PLUGIN API: Plugin initialization; called after parse_config().
   int init(Config *config, std::vector<Source *> sources, std::vector<System *> systems) override
   {
+    // Set frequency format
+    frequency_format = config->frequency_format;
+    
+    // Set instance ID
     tr_instance_id = config->instance_id;
     if (tr_instance_id == "")
       tr_instance_id = "trunk-recorder";
@@ -997,6 +1063,34 @@ public:
     return tg_json;
   }
 
+  std::string file_to_base64(const std::string& filename) {
+    std::ifstream file(filename, std::ios::binary);
+    if (!file.is_open()) {
+      throw std::runtime_error("Could not open file " + filename);
+    }
+
+    // Read the file into a vector
+    std::vector<unsigned char> buffer(std::istreambuf_iterator<char>(file), {});
+
+    // Base64 encode
+    using namespace boost::archive::iterators;
+    using It = base64_from_binary<transform_width<std::vector<unsigned char>::const_iterator, 6, 8>>;
+    auto base64_str = std::string(It(buffer.begin()), It(buffer.end()));
+
+    // Pad with '=' characters if necessary
+    size_t num_pad_chars = (3 - buffer.size() % 3) % 3;
+    base64_str.append(num_pad_chars, '=');
+
+    return base64_str;
+  }
+
+  std::string get_filename_from_path(const std::string& path) {
+    const char* filename = strrchr(path.c_str(), '/');
+    if (!filename)
+      filename = strrchr(path.c_str(), '\\');
+    return filename ? filename + 1 : path;
+  }
+
   // ********************************
   // Paho MQTT
   // ********************************
@@ -1105,6 +1199,7 @@ public:
     catch (const mqtt::exception &exc)
     {
       BOOST_LOG_TRIVIAL(error) << log_prefix << exc.what() << endl;
+      return 1;
     }
     return 0;
   }

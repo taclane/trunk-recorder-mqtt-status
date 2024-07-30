@@ -15,11 +15,19 @@ Requires trunk-recorder 4.7 (commit 837a057 14 NOV 2023) or later, and Paho MQTT
 
 ## Install
 
-1. **Build and install the current version of Trunk Recorder** following these [instructions](https://github.com/robotastic/trunk-recorder/blob/master/docs/INSTALL-LINUX.md). Make sure you do a `sudo make install` at the end to install the Trunk Recorder binary and libraries system-wide. The plugin will be built against these libraries.
-
+1. **Clone the 5.0 RC release branch of Trunk Recorder** following these [instructions](https://github.com/robotastic/trunk-recorder/blob/master/docs/INSTALL-LINUX.md).
+   
 2. **Install the Paho MQTT C & C++ Libraries**.
 
-&emsp; _Install Paho MQTT C_
+&emsp; If your package manager provides recent Paho MQTT libraries, e.g:
+
+```bash
+sudo apt install libpaho-mqtt-dev libpaho-mqttpp-dev
+```
+
+&emsp; If not, you may build and install these libraries from source:
+
+&emsp; - _Install Paho MQTT C_
 
 ```bash
 git clone https://github.com/eclipse/paho.mqtt.c.git
@@ -30,7 +38,7 @@ sudo cmake --build build/ --target install
 sudo ldconfig
 ```
 
-&emsp; _Install Paho MQTT C++_
+&emsp; - _Install Paho MQTT C++_
 
 ```bash
 git clone https://github.com/eclipse/paho.mqtt.cpp
@@ -41,40 +49,37 @@ sudo cmake --build build/ --target install
 sudo ldconfig
 ```
 
-&emsp; Alternatively, if your package manager provides recent Paho MQTT libraries:
-
-```bash
-sudo apt install libpaho-mqtt-dev libpaho-mqttpp-dev
-```
-
 3. **Build and install the plugin:**
 
-&emsp; Plugin repos should be cloned in a location other than the trunk-recorder source dir.
+&emsp; This pluigin source should be cloned into the `/user_plugins` directory of the Trunk Recorder 5.0+ source tree.  It will be built and installed along with Trunk Recorder.
 
 ```bash
-mkdir build
-cd build
-cmake ..
+cd [your trunk-recorder github source directory]
+cd user_plugins
+git clone https://github.com/taclane/trunk-recorder-mqtt-status --branch test/autobuild
+cd [your trunk-recorder build directory]
 sudo make install
 ```
 
-&emsp; **IMPORTANT NOTE:** To avoid SEGFAULTs or other errors, plugins should be rebuilt after every new release of trunk-recorder.
+&emsp; **NOTE:** Plugins will be automatically built and installed with Trunk Recorder.  To update either Trunk Recorder or a plugin, simply `cd` into the appropriate git directory and `git pull`.  Refer to the above instructions to `make install` any updates.
 
 ## Configure
 
 **Plugin options:**
 
-| Key           | Required | Default Value        | Type       | Description                                                                                                                                                                              |
-| ------------- | :------: | -------------------- | ---------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| broker        |    ✓     | tcp://localhost:1883 | string     | The URL for the MQTT Message Broker. It should include the protocol used: **tcp**, **ssl**, **ws**, **wss** and the port, which is generally 1883 for tcp, 8883 for ssl, and 443 for ws. |
-| topic         |    ✓     |                      | string     | This is the base MQTT topic. The plugin will create subtopics for the different status messages.                                                                                         |
-| unit_topic    |          |                      | string     | Optional topic to report unit stats over MQTT.                                                                                                                                           |
-| message_topic |          |                      | string     | Optional topic to report trunking messages over MQTT.                                                                                                                                    |
-| console_logs  |          | false                | true/false | Optional setting to report console messages over MQTT.                                                                                                                                   |
-| username      |          |                      | string     | If a username is required for the broker, add it here.                                                                                                                                   |
-| password      |          |                      | string     | If a password is required for the broker, add it here.                                                                                                                                   |
-| client_id     |          | tr-status-xxxxxxxx   | string     | Override the client_id generated for this connection to the MQTT broker.                                                                                                                 |
-| qos           |          | 0                    | int        | Set the MQTT message [QOS level](https://www.eclipse.org/paho/files/mqttdoc/MQTTClient/html/qos.html)                                                                                    |
+| Key             | Required | Default Value        | Type       | Description                                                                                                                                                                              |
+| --------------- | :------: | -------------------- | ---------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| broker          |    ✓     | tcp://localhost:1883 | string     | The URL for the MQTT Message Broker. It should include the protocol used: **tcp**, **ssl**, **ws**, **wss** and the port, which is generally 1883 for tcp, 8883 for ssl, and 443 for ws. |
+| topic           |    ✓     |                      | string     | This is the base MQTT topic. The plugin will create subtopics for the different status messages.                                                                                         |
+| unit_topic      |          |                      | string     | Optional topic to report unit stats over MQTT.                                                                                                                                           |
+| message_topic   |          |                      | string     | Optional topic to report trunking messages over MQTT.                                                                                                                                    |
+| console_logs    |          | false                | true/false | Optional setting to report console messages over MQTT.                                                                                                                                   |
+| username        |          |                      | string     | If a username is required for the broker, add it here.                                                                                                                                   |
+| password        |          |                      | string     | If a password is required for the broker, add it here.                                                                                                                                   |
+| client_id       |          | tr-status-xxxxxxxx   | string     | Override the client_id generated for this connection to the MQTT broker.                                                                                                                 |
+| mqtt_audio      |          | false                | true/false | Optional setting to report audio in base64 and call metadata over MQTT.                                                                                                                  |
+| mqtt_audio_type |          | wav                  | string     | Control which audio files to emit.  `wav`, `m4a` (if compression enabled), `both`, `none` (only the .json)                                                                               |
+| qos             |          | 0                    | int        | Set the MQTT message [QOS level](https://www.eclipse.org/paho/files/mqttdoc/MQTTClient/html/qos.html)                                                                                    |
 
 **Trunk-Recorder options:**
 
@@ -97,6 +102,8 @@ See the included [config.json](./config.json) for an example how to load this pl
         "username": "robotastic",
         "password": "",
         "console_logs": true,
+        "mqtt_audio": false,
+        "mqtt_qos": 0,
     }]
 ```
 
@@ -121,6 +128,7 @@ The plugin will provide the following messages to the MQTT broker depending on c
 | topic                   | [recorder](./example_messages.md#recorder)         |          | Recorder status changes                                            |
 | topic                   | [call_start](./example_messages.md#call_start)     |          | New call                                                           |
 | topic                   | [call_end](./example_messages.md#call_end)         |          | Completed call                                                     |
+| topic                   | [audio](./example_messages.md#audio)               |          | Audio and metadata of completed call                               |
 | topic/trunk_recorder    | [status](./example_messages.md#plugin_status)      |    ✓     | Plugin status, sent on startup or when the broker loses connection |
 | topic/trunk_recorder    | [console](./example_messages.md#console_logs)      |          | Trunk-Recorder console log messages                                |
 | unit_topic/shortname    | [call](./example_messages.md#call)                 |          | Channel grants                                                     |
@@ -198,7 +206,7 @@ mqtt {
     keepalive_multiplier = 1.25
 ...
 ```
-[Editing `/etc/nanomq.conf`](https://nanomq.io/docs/en/latest/config-description/mqtt.html) and increasing the packet size to 100 KB or more should be sufficient for MQTT messages generated by this plugin.
+[Editing `/etc/nanomq.conf`](https://nanomq.io/docs/en/latest/config-description/mqtt.html) and increasing the packet size to 100 KB or more should be sufficient for MQTT messages generated by this plugin. If `mqtt_audio` is enabled packet size will need to be raised significantly.
 
 ## Docker
 
