@@ -85,7 +85,7 @@ sudo make install
 
 | Key                          | Required | Default Value               | Type   | Description                                                                                |
 | ---------------------------- | :------: | --------------------------- | ------ | ------------------------------------------------------------------------------------------ |
-| [instance_id](./config.json) |          | <nobr>trunk-recorder</nobr> | string | Append an `instance_id` key to identify the trunk-recorder instance sending MQTT messages. |
+| [instanceId](./config.json) |          | <nobr>trunk-recorder</nobr> | string | Append an `instance_id` key to identify the trunk-recorder instance sending MQTT messages. |
 
 **Plugin Usage:**
 
