@@ -15,7 +15,7 @@ Requires trunk-recorder 4.7 (commit 837a057 14 NOV 2023) or later, and Paho MQTT
 
 ## Install
 
-1. **Clone the 5.0 RC release branch of Trunk Recorder** following these [instructions](https://github.com/robotastic/trunk-recorder/blob/master/docs/INSTALL-LINUX.md).
+1. **Clone Trunk Recorder** source following these [instructions](https://github.com/robotastic/trunk-recorder/blob/master/docs/INSTALL-LINUX.md).
    
 2. **Install the Paho MQTT C & C++ Libraries**.
 
