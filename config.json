@@ -1,6 +1,6 @@
 {
     "ver": 2,
-    "instance_id": "city_center",
+    "instanceId": "city_center",
     "sources":   [{
         "center": 855700000,
         "rate": 2048000,
