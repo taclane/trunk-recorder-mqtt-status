@@ -2,7 +2,7 @@
 
 This is a plugin for Trunk Recorder that publish the current status over MQTT. External programs can use the MQTT messages to collect and display information on monitored systems.
 
-Requires trunk-recorder 4.7 (commit 837a057 14 NOV 2023) or later, and Paho MQTT libraries
+Requires trunk-recorder 5.0 or later, and Paho MQTT libraries
 
 - [Install](#install)
 - [Configure](#configure)
