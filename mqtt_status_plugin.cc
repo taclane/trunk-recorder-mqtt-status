@@ -13,10 +13,13 @@
 #include <cstring>
 #include <regex>
 #include <mqtt/client.h>
-#include <trunk-recorder/source.h>
-#include <json.hpp>
-// #include <trunk-recorder/json.hpp>
-#include <trunk-recorder/plugin_manager/plugin_api.h>
+
+// Trunk-Recorder headers
+#include "../../trunk-recorder/source.h"
+#include "../../lib/json.hpp"
+#include "../../trunk-recorder/plugin_manager/plugin_api.h"
+
+// Boost headers
 #include <boost/archive/iterators/base64_from_binary.hpp>
 #include <boost/archive/iterators/transform_width.hpp>
 #include <boost/date_time/posix_time/posix_time.hpp> //time_formatters.hpp>
@@ -803,6 +806,49 @@ public:
     return 0;
   }
 
+  // stop()
+  //   TRUNK-RECORDER PLUGIN API: Called when trunk-recorder is shutting down or reloading
+  int stop() override
+  {
+    BOOST_LOG_TRIVIAL(info) << log_prefix << "Stopping MQTT client...";
+    
+    // Disconnect from MQTT broker if connected
+    if (mqtt_client && mqtt_connected) {
+      try {
+        // Publish disconnection status message
+        std::string topic_lwt = topic_status + "/trunk_recorder/status";
+        json status_msg = {
+            {"status", "disconnected"},
+            {"instance_id", tr_instance_id},
+            {"client_id", mqtt_client_id}};
+        
+        mqtt::message_ptr disc_msg = mqtt::message_ptr_builder()
+                                         .topic(topic_lwt)
+                                         .payload(status_msg.dump())
+                                         .qos(mqtt_qos)
+                                         .retained(true)
+                                         .finalize();
+        mqtt_client->publish(disc_msg)->wait_for(std::chrono::seconds(2));
+        
+        // Disconnect from broker
+        mqtt_client->disconnect()->wait_for(std::chrono::seconds(5));
+        mqtt_connected = false;
+        BOOST_LOG_TRIVIAL(info) << log_prefix << "Disconnected from MQTT broker";
+      } catch (const mqtt::exception &exc) {
+        BOOST_LOG_TRIVIAL(error) << log_prefix << "Error during disconnect: " << exc.what();
+      }
+    }
+    
+    // Clean up MQTT client
+    if (mqtt_client) {
+      delete mqtt_client;
+      mqtt_client = nullptr;
+    }
+    
+    BOOST_LOG_TRIVIAL(info) << log_prefix << "MQTT client stopped";
+    return 0;
+  }
+
   int setup_config(std::vector<Source *> sources, std::vector<System *> systems) override
   {
     // TRUNK-RECORDER PLUGIN API
@@ -1143,7 +1189,7 @@ public:
     }
 
     // Open a connection to the broker, set mqtt_connected true if successful, publish a connect message
-    mqtt_client = new mqtt::async_client(mqtt_broker, mqtt_client_id, tr_config->capture_dir + "/store");
+    mqtt_client = new mqtt::async_client(mqtt_broker, mqtt_client_id);
     mqtt_client->set_callback(*this);
 
     try
