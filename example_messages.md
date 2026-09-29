@@ -12,6 +12,7 @@
   - [call\_end](#call_end)
   - [audio](#audio)
   - [plugin\_status](#plugin_status)
+  - [heartbeat](#heartbeat)
 - [Unit Messages](#unit-messages)
   - [call](#call)
   - [end](#end)
@@ -679,6 +680,20 @@ Plugin status message, sent on startup or when the broker loses connection. The 
   "client_id": "tr-status",
   "instance_id": "east-antenna",
   "status": "connected"
+}
+```
+
+## heartbeat
+
+Broker liveness check, sent at QoS 1 every `heartbeat_interval` seconds. If the broker does not acknowledge it within `heartbeat_timeout`, the plugin reconnects.
+
+`topic/trunk_recorder/heartbeat`
+
+```json
+{
+  "type": "heartbeat",
+  "timestamp": 1790698777,
+  "instance_id": "trunk-recorder"
 }
 ```
 

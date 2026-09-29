@@ -83,6 +83,11 @@ sudo make install
 | mqtt_audio      |          | false                | true/false | Optional setting to report audio in base64 and call metadata over MQTT.                                                                                                                  |
 | mqtt_audio_type |          | wav                  | string     | Control which audio files to emit.  `wav`, `m4a` (if compression enabled), `both`, `none` (only the .json)                                                                               |
 | qos             |          | 0                    | int        | Set the MQTT message [QOS level](https://www.eclipse.org/paho/files/mqttdoc/MQTTClient/html/qos.html)                                                                                    |
+| queue_max_age   |          | 60                   | int        | Seconds a message may wait in the outbound queue (e.g. while the broker is unreachable) before it is discarded as stale.                                                                 |
+| audio_max_age   |          | 300                  | int        | As `queue_max_age`, for `mqtt_audio` messages.                                                                                                                                           |
+| queue_max_mb    |          | 32                   | int        | Memory limit for the outbound queue. When exceeded, the oldest queued messages are discarded. Lower this on memory-constrained systems that send audio.                                  |
+| heartbeat_interval |       | 10                   | int        | Seconds between QoS 1 heartbeats used to detect a broker connection that has silently stopped delivering. `0` disables.                                                                 |
+| heartbeat_timeout |        | 30                   | int        | Seconds to wait for the broker to acknowledge a heartbeat before reconnecting. Raise this if `mqtt_audio` is sent over a slow uplink, where large payloads can delay the acknowledgement. `0` disables. |
 
 **Trunk-Recorder options:**
 
@@ -106,7 +111,7 @@ See the included [config.json](./config.json) for an example how to load this pl
         "password": "",
         "console_logs": true,
         "mqtt_audio": false,
-        "mqtt_qos": 0,
+        "qos": 0
     }]
 ```
 
@@ -134,6 +139,7 @@ The plugin will provide the following messages to the MQTT broker depending on c
 | topic                   | [audio](./example_messages.md#audio)               |          | Audio and metadata of completed call                               |
 | topic/trunk_recorder    | [status](./example_messages.md#plugin_status)      |    ✓     | Plugin status, sent on startup or when the broker loses connection |
 | topic/trunk_recorder    | [console](./example_messages.md#console_logs)      |          | Trunk-Recorder console log messages                                |
+| topic/trunk_recorder    | [heartbeat](./example_messages.md#heartbeat)       |          | Broker liveness check (QoS 1), every `heartbeat_interval` seconds  |
 | unit_topic/shortname    | [call](./example_messages.md#call)                 |          | Channel grants                                                     |
 | unit_topic/shortname    | [end](./example_messages.md#end)                   |          | Call end unit information\*\*                                      |
 | unit_topic/shortname    | [on](./example_messages.md#on)                     |          | Unit registration (radio on)                                       |
