@@ -12,6 +12,13 @@
 #include <map>
 #include <cstring>
 #include <regex>
+#include <deque>
+#include <mutex>
+#include <thread>
+#include <atomic>
+#include <chrono>
+#include <condition_variable>
+#include <algorithm>
 #include <mqtt/client.h>
 
 // Trunk-Recorder headers
@@ -37,8 +44,37 @@ namespace logging = boost::log;
 class Mqtt_Status : public Plugin_Api, public virtual mqtt::callback
 {
   // Paho MQTT
-  mqtt::async_client *mqtt_client;
-  bool mqtt_connected = false;
+  mqtt::async_client *mqtt_client = nullptr;
+  mqtt::connect_options mqtt_conn_opts;
+  std::atomic<bool> mqtt_connected{false};
+  std::atomic<bool> resend_retained{false};
+
+  // Outbound queue, drained by publish_worker()
+  struct Mqtt_Outbound
+  {
+    std::string topic;
+    std::string payload;
+    bool retained;
+    bool coalesce;
+    std::chrono::steady_clock::time_point expires;
+    int attempts;
+  };
+  static const size_t MAX_IN_FLIGHT = 10;
+  std::deque<Mqtt_Outbound> send_queue;
+  size_t send_queue_bytes = 0;
+  std::mutex queue_mutex;
+  std::condition_variable queue_cv;
+  std::thread publish_thread;
+  bool publish_running = false;
+  unsigned long dropped_stale = 0;
+  unsigned long dropped_overflow = 0;
+  unsigned long publish_errors = 0;
+  int queue_max_age;
+  int audio_max_age;
+  size_t queue_max_bytes;
+  int heartbeat_interval;
+  int heartbeat_timeout;
+  boost::shared_ptr<logging::sinks::sink> mqtt_sink;
 
   // Trunk-Recorder
   Config *tr_config;
@@ -195,6 +231,11 @@ private:
 public:
   Mqtt_Status(){};
 
+  ~Mqtt_Status()
+  {
+    stop_publish_worker();
+  }
+
   // ********************************
   // trunk-recorder MQTT messages
   // ********************************
@@ -218,6 +259,8 @@ public:
       for (std::vector<TrunkMessage>::iterator it = messages.begin(); it != messages.end(); it++)
       {
         TrunkMessage message = *it;
+        // Unlisted opcodes fall back to "UNK"
+        std::vector<std::string> opcode_info = opcode_type.count(message.opcode) ? opcode_type[message.opcode] : opcode_type[0xff];
 
         nlohmann::ordered_json message_json = {
             {"sys_num", sys->get_sys_num()},
@@ -225,10 +268,10 @@ public:
             {"trunk_msg", message.message_type},
             {"trunk_msg_type", message_type[message.message_type]},
             {"opcode", int_to_hex(message.opcode, 2)},
-            {"opcode_type", opcode_type[message.opcode][0]},
-            {"opcode_desc", opcode_type[message.opcode][1]},
+            {"opcode_type", opcode_info[0]},
+            {"opcode_desc", opcode_info[1]},
             {"meta", strip_esc_seq(message.meta)}};
-        return send_json(message_json, "message", "message", topic_message + "/" + sys->get_short_name().c_str(), false);
+        send_json(message_json, "message", "message", topic_message + "/" + sys->get_short_name().c_str(), false);
       }
     }
     return 0;
@@ -590,9 +633,8 @@ public:
       call_json["metadata"]["filename"] = get_filename_from_path(call_info.filename);
     }
 
-    int ret = send_json(call_json, "call", "audio", topic_status, false);
-    
-    int size = call_json.dump().size();    
+    size_t size = 0;
+    int ret = send_json(call_json, "call", "audio", topic_status, false, &size);
     std::string loghdr = log_header(call_info.short_name,call_info.call_num,call_info.talkgroup_display,call_info.freq);
 
     if (ret == 0) {
@@ -601,7 +643,7 @@ public:
     } 
     else 
     {
-      BOOST_LOG_TRIVIAL(error) << loghdr << "MQTT Call Upload error - packet size: " << size;
+      BOOST_LOG_TRIVIAL(error) << loghdr << "MQTT Call Upload Error - packet size: " << size;
       return 1;
     }
   }
@@ -724,6 +766,13 @@ public:
     mqtt_audio = config_data.value("mqtt_audio", false);
     mqtt_audio_type = config_data.value("mqtt_audio_type", "wav");
     mqtt_client_id = config_data.value("client_id", generate_client_id());
+    queue_max_age = config_data.value("queue_max_age", 60);
+    audio_max_age = config_data.value("audio_max_age", 300);
+    queue_max_bytes = (size_t)config_data.value("queue_max_mb", 32) * 1024 * 1024;
+    heartbeat_interval = config_data.value("heartbeat_interval", 10);
+    heartbeat_timeout = config_data.value("heartbeat_timeout", 30);
+    if (heartbeat_timeout <= 0)
+      heartbeat_interval = 0;
 
     // Enable topics and clean up stray '/' if encountered
     if (topic_status != "")
@@ -761,6 +810,8 @@ public:
     BOOST_LOG_TRIVIAL(info) << log_prefix << "MQTT Audio Topic:       " << ((mqtt_audio == false) ? "[disabled]" : topic_status + "/audio");
     BOOST_LOG_TRIVIAL(info) << log_prefix << "MQTT Audio (wav/m4a):   " << ((mqtt_audio == false) ? "[disabled]" : mqtt_audio_type);
     BOOST_LOG_TRIVIAL(info) << log_prefix << "MQTT QOS:               " << mqtt_qos;
+    BOOST_LOG_TRIVIAL(info) << log_prefix << "Queue Limits:           " << queue_max_age << "s / " << (queue_max_bytes / 1024 / 1024) << " MB (audio " << audio_max_age << "s)";
+    BOOST_LOG_TRIVIAL(info) << log_prefix << "Heartbeat:              " << ((heartbeat_interval <= 0) ? "[disabled]" : std::to_string(heartbeat_interval) + "s, timeout " + std::to_string(heartbeat_timeout) + "s");
     return 0;
   }
 
@@ -788,18 +839,16 @@ public:
   int start() override
   {
     log_prefix = "[MQTT Status]\t";
-    // Start the MQTT connection
+    start_publish_worker();
+    // Start the MQTT connection; config and systems are sent by poll_one() once connected
     open_connection();
-    // Send config and system MQTT messages
-    send_config(tr_sources, tr_systems);
-    setup_systems(tr_systems);
 
     // Setup custom logging sink for MQTT messages
     if (console_enabled)
     {
       typedef logging::sinks::synchronous_sink<MqttSinkBackend> mqtt_sink_t;
 
-      boost::shared_ptr<mqtt_sink_t> mqtt_sink = boost::make_shared<mqtt_sink_t>(boost::make_shared<MqttSinkBackend>(*this));
+      mqtt_sink = boost::make_shared<mqtt_sink_t>(boost::make_shared<MqttSinkBackend>(*this));
       logging::core::get()->add_sink(mqtt_sink);
     }
 
@@ -810,8 +859,15 @@ public:
   //   TRUNK-RECORDER PLUGIN API: Called when trunk-recorder is shutting down or reloading
   int stop() override
   {
+    if (mqtt_sink)
+    {
+      logging::core::get()->remove_sink(mqtt_sink);
+      mqtt_sink.reset();
+    }
+
     BOOST_LOG_TRIVIAL(info) << log_prefix << "Stopping MQTT client...";
-    
+    stop_publish_worker();
+
     // Disconnect from MQTT broker if connected
     if (mqtt_client && mqtt_connected) {
       try {
@@ -864,6 +920,13 @@ public:
   // TRUNK-RECORDER PLUGIN API: Called during each pass through the main loop of trunk-recorder.
   int poll_one() override
   {
+    // Send config and systems after each (re)connect
+    if (resend_retained.exchange(false))
+    {
+      send_config(tr_sources, tr_systems);
+      setup_systems(tr_systems);
+    }
+
     // Refresh active calls every 1 second
     resend_calls();
     return 0;
@@ -928,8 +991,8 @@ public:
   //   Strip the console escape sequences from a string, convert /t to spaces
   std::string strip_esc_seq(const std::string &input)
   {
-    std::regex escape_seq_regex("\u001B\\[[0-9;]+m");
-    std::regex tab_regex("\t");
+    static const std::regex escape_seq_regex("\u001B\\[[0-9;]+m");
+    static const std::regex tab_regex("\t");
     return std::regex_replace(std::regex_replace(input, escape_seq_regex, ""), tab_regex, "    ");
   }
 
@@ -1143,26 +1206,18 @@ public:
 
   // open_connection()
   //   Open the connection to the destination MQTT server using paho libraries.
-  //   Send a status message on connect/disconnect.
+  //   The broker sends the disconnect message; connected() queues the connect message.
   //   MQTT: topic_message/status/trunk_recorder/status
   void open_connection()
   {
-    // Set a connect/disconnect message between client and broker
+    // Set a disconnect message between client and broker
     std::string topic_lwt = topic_status + "/trunk_recorder/status";
 
     json status_msg = {
-        {"status", "connected"},
+        {"status", "disconnected"},
         {"instance_id", tr_instance_id},
         {"client_id", mqtt_client_id}};
 
-    mqtt::message_ptr conn_msg = mqtt::message_ptr_builder()
-                                     .topic(topic_lwt)
-                                     .payload(status_msg.dump())
-                                     .qos(mqtt_qos)
-                                     .retained(true)
-                                     .finalize();
-
-    status_msg["status"] = "disconnected";
     std::string lwt_json = status_msg.dump();
     auto will_msg = mqtt::message(topic_lwt, lwt_json.c_str(), strlen(lwt_json.c_str()), mqtt_qos, true);
 
@@ -1172,35 +1227,32 @@ public:
                                     .enable_server_cert_auth(false)
                                     .finalize();
 
-    // Set connection options
-    mqtt::connect_options connOpts = mqtt::connect_options_builder()
-                                         .clean_session()
-                                         .ssl(sslopts)
-                                         .automatic_reconnect(std::chrono::seconds(10), std::chrono::seconds(40))
-                                         .will(will_msg)
-                                         .finalize();
+    // Set connection options; kept for reconnecting after a missed heartbeat
+    mqtt_conn_opts = mqtt::connect_options_builder()
+                         .clean_session()
+                         .ssl(sslopts)
+                         .automatic_reconnect(std::chrono::seconds(10), std::chrono::seconds(40))
+                         .will(will_msg)
+                         .finalize();
 
     // Set user/pass if indicated
     if ((mqtt_username != "") && (mqtt_password != ""))
     {
       BOOST_LOG_TRIVIAL(info) << log_prefix << "Setting MQTT Broker username and password..." << endl;
-      connOpts.set_user_name(mqtt_username);
-      connOpts.set_password(mqtt_password);
+      mqtt_conn_opts.set_user_name(mqtt_username);
+      mqtt_conn_opts.set_password(mqtt_password);
     }
 
-    // Open a connection to the broker, set mqtt_connected true if successful, publish a connect message
+    // Open a connection to the broker, connected() sets mqtt_connected true if successful
     mqtt_client = new mqtt::async_client(mqtt_broker, mqtt_client_id);
     mqtt_client->set_callback(*this);
 
     try
     {
       BOOST_LOG_TRIVIAL(info) << log_prefix << "Connecting...";
-      mqtt::token_ptr conntok = mqtt_client->connect(connOpts);
+      mqtt::token_ptr conntok = mqtt_client->connect(mqtt_conn_opts);
       BOOST_LOG_TRIVIAL(info) << log_prefix << "Waiting for the connection...";
       conntok->wait();
-      // BOOST_LOG_TRIVIAL(info) << log_prefix << "OK";
-      // mqtt_connected = true;
-      mqtt_client->publish(conn_msg);
     }
     catch (const mqtt::exception &exc)
     {
@@ -1209,20 +1261,17 @@ public:
   }
 
   // send_json()
-  //   Send a MQTT message using the configured connection and paho libraries.
+  //   Queue a MQTT message for publish_worker().
   //   send_json(
   //      json data                         <- json payload,
   //      std::string name                  <- json payload name,
   //      std::string type                  <- subtopic / message type
   //      std::string object_topic          <- topic base,
   //      bool retained                     <- retain message at the broker (config, system, etc.)
+  //      size_t *payload_size              <- optional; set to the size of the sent payload
   //      )
-  int send_json(nlohmann::ordered_json data, std::string name, std::string type, std::string object_topic, bool retained)
+  int send_json(nlohmann::ordered_json data, std::string name, std::string type, std::string object_topic, bool retained, size_t *payload_size = nullptr)
   {
-    // Ignore requests to send MQTT messages before the connection is opened
-    if (mqtt_connected == false)
-      return 0;
-
     // Assemble the MQTT message
     nlohmann::ordered_json payload = {
         {"type", type},
@@ -1230,61 +1279,299 @@ public:
         {"timestamp", time(NULL)},
         {"instance_id", tr_instance_id}};
 
-    mqtt::message_ptr pubmsg = mqtt::message_ptr_builder()
-                                   .topic(object_topic + "/" + type)
-                                   .payload(payload.dump())
-                                   .qos(mqtt_qos)
-                                   .retained(retained)
-                                   .finalize();
+    // Replace invalid UTF-8 (e.g. Latin-1 talkgroup tags) rather than throwing
+    std::string payload_str = payload.dump(-1, ' ', false, nlohmann::json::error_handler_t::replace);
+    if (payload_size)
+      *payload_size = payload_str.size();
 
-    // Publish the MQTT message
-    try
-    {
-      mqtt_client->publish(pubmsg);
-    }
-    catch (const mqtt::exception &exc)
-    {
-      BOOST_LOG_TRIVIAL(error) << log_prefix << exc.what() << endl;
-      return 1;
-    }
+    // Periodic snapshots only need their latest copy queued
+    bool coalesce = (type == "calls_active") || (type == "recorders") || (type == "rates") || (type == "config") || (type == "systems");
+    int max_age = (type == "audio") ? audio_max_age : queue_max_age;
+
+    enqueue(object_topic + "/" + type, std::move(payload_str), retained, coalesce, max_age);
     return 0;
   }
 
+  // publish()
+  //   Hand a message to paho. Returns nullptr if it is refused (e.g. the connection just dropped).
+  mqtt::delivery_token_ptr publish(const std::string &topic, const std::string &payload, int qos, bool retained)
+  {
+    try
+    {
+      return mqtt_client->publish(mqtt::message_ptr_builder()
+                                      .topic(topic)
+                                      .payload(payload)
+                                      .qos(qos)
+                                      .retained(retained)
+                                      .finalize());
+    }
+    catch (const mqtt::exception &)
+    {
+      return nullptr;
+    }
+  }
+
+  // ********************************
+  // Outbound queue
+  // ********************************
+
+  // enqueue()
+  //   Add a message to the outbound queue, dropping the oldest messages beyond queue_max_mb.
+  //   Must not log: it is called from the console log sink.
+  void enqueue(std::string topic, std::string payload, bool retained, bool coalesce, int max_age)
+  {
+    std::chrono::steady_clock::time_point expires = std::chrono::steady_clock::now() + std::chrono::seconds(max_age);
+    {
+      std::lock_guard<std::mutex> lock(queue_mutex);
+      if (!publish_running)
+        return;
+
+      std::deque<Mqtt_Outbound>::iterator it = send_queue.end();
+      if (coalesce)
+        it = std::find_if(send_queue.begin(), send_queue.end(), [&](const Mqtt_Outbound &m)
+                          { return m.coalesce && (m.topic == topic); });
+
+      if (it != send_queue.end())
+      {
+        send_queue_bytes -= it->payload.size();
+        send_queue_bytes += payload.size();
+        it->payload = std::move(payload);
+        it->expires = expires;
+      }
+      else
+      {
+        send_queue_bytes += payload.size();
+        send_queue.push_back({std::move(topic), std::move(payload), retained, coalesce, expires, 0});
+      }
+
+      while ((send_queue_bytes > queue_max_bytes) && (send_queue.size() > 1))
+      {
+        send_queue_bytes -= send_queue.front().payload.size();
+        send_queue.pop_front();
+        dropped_overflow++;
+      }
+    }
+    queue_cv.notify_one();
+  }
+
+  // purge_expired()
+  //   Drop queued messages older than their max age. Caller holds queue_mutex.
+  void purge_expired(std::chrono::steady_clock::time_point now)
+  {
+    size_t count = send_queue.size();
+    send_queue.erase(std::remove_if(send_queue.begin(), send_queue.end(), [&](const Mqtt_Outbound &m)
+                                    {
+                                      if (m.expires > now)
+                                        return false;
+                                      send_queue_bytes -= m.payload.size();
+                                      return true; }),
+                     send_queue.end());
+    dropped_stale += count - send_queue.size();
+  }
+
+  // report_queue_stats()
+  //   Log dropped messages since the last report. Caller holds queue_mutex via lock.
+  void report_queue_stats(std::unique_lock<std::mutex> &lock)
+  {
+    if ((dropped_stale == 0) && (dropped_overflow == 0) && (publish_errors == 0))
+      return;
+
+    unsigned long stale = dropped_stale, overflow = dropped_overflow, errors = publish_errors;
+    size_t depth = send_queue.size(), kbytes = send_queue_bytes / 1024;
+    dropped_stale = dropped_overflow = publish_errors = 0;
+
+    lock.unlock();
+    BOOST_LOG_TRIVIAL(warning) << log_prefix << "Queue: dropped " << stale << " expired, " << overflow << " over size limit; "
+                               << errors << " publish errors; " << depth << " queued (" << kbytes << " KB)";
+    lock.lock();
+  }
+
+  void start_publish_worker()
+  {
+    std::lock_guard<std::mutex> lock(queue_mutex);
+    if (publish_running)
+      return;
+    publish_running = true;
+    publish_thread = std::thread(&Mqtt_Status::publish_worker, this);
+  }
+
+  void stop_publish_worker()
+  {
+    {
+      std::lock_guard<std::mutex> lock(queue_mutex);
+      publish_running = false;
+      send_queue.clear();
+      send_queue_bytes = 0;
+    }
+    queue_cv.notify_all();
+    if (publish_thread.joinable())
+      publish_thread.join();
+  }
+
+  // publish_worker()
+  //   Publish queued messages while connected, keeping at most MAX_IN_FLIGHT inside paho so a
+  //   stalled connection backs up here, where age and size limits apply. A QoS 1 heartbeat
+  //   detects connections that stop delivering; QoS 0 traffic alone never gets a reply.
+  //   queue_mutex is released around every paho call.
+  void publish_worker()
+  {
+    typedef std::chrono::steady_clock clock;
+    std::deque<std::pair<mqtt::delivery_token_ptr, clock::time_point>> in_flight;
+    mqtt::delivery_token_ptr heartbeat_tok;
+    clock::time_point heartbeat_sent;
+    clock::time_point next_heartbeat = clock::now() + std::chrono::seconds(heartbeat_interval);
+    clock::time_point next_purge = clock::now();
+    clock::time_point next_report = clock::now() + std::chrono::seconds(30);
+    clock::time_point next_reconnect;
+    bool reconnect_pending = false;
+
+    std::unique_lock<std::mutex> lock(queue_mutex);
+    while (publish_running)
+    {
+      queue_cv.wait_for(lock, std::chrono::seconds(1), [this]
+                        { return !publish_running || (mqtt_connected && !send_queue.empty()); });
+      if (!publish_running)
+        break;
+
+      clock::time_point now = clock::now();
+      if (now >= next_purge)
+      {
+        purge_expired(now);
+        next_purge = now + std::chrono::seconds(1);
+      }
+      if (now >= next_report)
+      {
+        report_queue_stats(lock);
+        next_report = now + std::chrono::seconds(30);
+      }
+      lock.unlock();
+
+      // Paho reconnects on its own after a lost connection, but not after disconnect()
+      if (reconnect_pending && (now >= next_reconnect))
+      {
+        try
+        {
+          mqtt_client->connect(mqtt_conn_opts);
+          reconnect_pending = false;
+        }
+        catch (const mqtt::exception &)
+        {
+          next_reconnect = now + std::chrono::seconds(5);
+        }
+      }
+
+      if (!mqtt_connected)
+      {
+        heartbeat_tok.reset();
+        next_heartbeat = now + std::chrono::seconds(heartbeat_interval);
+      }
+      else if (heartbeat_interval > 0)
+      {
+        if (heartbeat_tok && heartbeat_tok->is_complete())
+          heartbeat_tok.reset();
+
+        if (heartbeat_tok && (now - heartbeat_sent >= std::chrono::seconds(heartbeat_timeout)))
+        {
+          mqtt_connected = false;
+          BOOST_LOG_TRIVIAL(warning) << log_prefix << "Heartbeat not acknowledged within " << heartbeat_timeout << "s, reconnecting to broker: " << mqtt_broker;
+          heartbeat_tok.reset();
+          in_flight.clear();
+          try
+          {
+            mqtt_client->disconnect(0)->wait_for(std::chrono::seconds(2));
+          }
+          catch (const mqtt::exception &)
+          {
+          }
+          reconnect_pending = true;
+          next_reconnect = now;
+        }
+        else if (!heartbeat_tok && (now >= next_heartbeat))
+        {
+          nlohmann::ordered_json heartbeat_json = {
+              {"type", "heartbeat"},
+              {"timestamp", time(NULL)},
+              {"instance_id", tr_instance_id}};
+          heartbeat_tok = publish(topic_status + "/trunk_recorder/heartbeat", heartbeat_json.dump(), 1, false);
+          heartbeat_sent = now;
+          next_heartbeat = now + std::chrono::seconds(heartbeat_interval);
+        }
+      }
+
+      // Forget delivered messages, and any paho never completes
+      while (!in_flight.empty() && (in_flight.front().first->is_complete() || (now - in_flight.front().second > std::chrono::seconds(30))))
+        in_flight.pop_front();
+
+      lock.lock();
+      if (!mqtt_connected || send_queue.empty())
+        continue;
+      if (in_flight.size() >= MAX_IN_FLIGHT)
+      {
+        // Wait for the oldest to finish; wait_for() throws if its delivery failed
+        lock.unlock();
+        try
+        {
+          in_flight.front().first->wait_for(std::chrono::milliseconds(500));
+        }
+        catch (const mqtt::exception &)
+        {
+        }
+        lock.lock();
+        continue;
+      }
+
+      Mqtt_Outbound item = std::move(send_queue.front());
+      send_queue.pop_front();
+      send_queue_bytes -= item.payload.size();
+      lock.unlock();
+      mqtt::delivery_token_ptr tok = publish(item.topic, item.payload, mqtt_qos, item.retained);
+      lock.lock();
+
+      if (tok)
+      {
+        in_flight.emplace_back(tok, clock::now());
+      }
+      else
+      {
+        // Usually the connection dropped just before publish(); retry briefly before giving up
+        publish_errors++;
+        if (++item.attempts < 3)
+        {
+          send_queue_bytes += item.payload.size();
+          send_queue.push_front(std::move(item));
+        }
+        queue_cv.wait_for(lock, std::chrono::milliseconds(500), [this]
+                          { return !publish_running; });
+      }
+    }
+  }
+
   // Paho mqtt::callbacks.
+  //   Update mqtt_connected before logging; with console_logs the log message is sent over MQTT.
+
   // connection_lost()
   //   Paho MQTT: This method is called if the connection to the broker is lost.
   void connection_lost(const string &cause)
   {
-    BOOST_LOG_TRIVIAL(error) << log_prefix << "Lost connection to broker: " << mqtt_broker << " " << cause;
     mqtt_connected = false;
+    BOOST_LOG_TRIVIAL(error) << log_prefix << "Lost connection to broker: " << mqtt_broker << " " << cause;
   }
 
   // connected()
   //   Paho MQTT: This method is called if the connection to the broker is activated.
-  //   Resends retained messages (config, systems, connection status) on reconnection
-  //   to handle ephemeral broker instances that don't persist retained messages.
+  //   MQTT: topic_message/status/trunk_recorder/status
   void connected(const string &cause)
   {
-    BOOST_LOG_TRIVIAL(info) << log_prefix << "Connected to broker: " << mqtt_broker << " " << cause;
     mqtt_connected = true;
 
-    // Resend retained messages after reconnection
-    send_config(tr_sources, tr_systems);
-    setup_systems(tr_systems);
-
-    // Resend connection status
-    std::string topic_lwt = topic_status + "/trunk_recorder/status";
     json status_msg = {
         {"status", "connected"},
         {"instance_id", tr_instance_id},
         {"client_id", mqtt_client_id}};
-    mqtt::message_ptr conn_msg = mqtt::message_ptr_builder()
-                                     .topic(topic_lwt)
-                                     .payload(status_msg.dump())
-                                     .qos(mqtt_qos)
-                                     .retained(true)
-                                     .finalize();
-    mqtt_client->publish(conn_msg);
+    enqueue(topic_status + "/trunk_recorder/status", status_msg.dump(), true, true, queue_max_age);
+    resend_retained = true;
+
+    BOOST_LOG_TRIVIAL(info) << log_prefix << "Connected to broker: " << mqtt_broker << " " << cause;
   }
 
   // ********************************
