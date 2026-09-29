@@ -89,6 +89,7 @@ class Mqtt_Status : public Plugin_Api, public virtual mqtt::callback
   std::string mqtt_username;
   std::string mqtt_password;
   int mqtt_qos;
+  int mqtt_version;
   std::string topic_status;
   std::string topic_unit;
   std::string topic_message;
@@ -763,6 +764,7 @@ public:
     topic_message = config_data.value("message_topic", "");
     console_enabled = config_data.value("console_logs", false);
     mqtt_qos = config_data.value("qos", 0);
+    mqtt_version = (config_data.value("mqtt_version", 3) == 5) ? 5 : 3;
     mqtt_audio = config_data.value("mqtt_audio", false);
     mqtt_audio_type = config_data.value("mqtt_audio_type", "wav");
     mqtt_client_id = config_data.value("client_id", generate_client_id());
@@ -810,6 +812,7 @@ public:
     BOOST_LOG_TRIVIAL(info) << log_prefix << "MQTT Audio Topic:       " << ((mqtt_audio == false) ? "[disabled]" : topic_status + "/audio");
     BOOST_LOG_TRIVIAL(info) << log_prefix << "MQTT Audio (wav/m4a):   " << ((mqtt_audio == false) ? "[disabled]" : mqtt_audio_type);
     BOOST_LOG_TRIVIAL(info) << log_prefix << "MQTT QOS:               " << mqtt_qos;
+    BOOST_LOG_TRIVIAL(info) << log_prefix << "MQTT Version:           " << ((mqtt_version == 5) ? "5" : "3.1.1");
     BOOST_LOG_TRIVIAL(info) << log_prefix << "Queue Limits:           " << queue_max_age << "s / " << (queue_max_bytes / 1024 / 1024) << " MB (audio " << audio_max_age << "s)";
     BOOST_LOG_TRIVIAL(info) << log_prefix << "Heartbeat:              " << ((heartbeat_interval <= 0) ? "[disabled]" : std::to_string(heartbeat_interval) + "s, timeout " + std::to_string(heartbeat_timeout) + "s");
     return 0;
@@ -1243,9 +1246,26 @@ public:
       mqtt_conn_opts.set_password(mqtt_password);
     }
 
+    // MQTT 5 replaces clean session with clean start
+    if (mqtt_version == 5)
+    {
+      mqtt_conn_opts.set_mqtt_version(MQTTVERSION_5);
+      mqtt_conn_opts.set_clean_start(true);
+    }
+
     // Open a connection to the broker, connected() sets mqtt_connected true if successful
-    mqtt_client = new mqtt::async_client(mqtt_broker, mqtt_client_id);
+    mqtt_client = new mqtt::async_client(mqtt_broker, mqtt_client_id, mqtt::create_options((mqtt_version == 5) ? MQTTVERSION_5 : MQTTVERSION_DEFAULT));
     mqtt_client->set_callback(*this);
+
+    // MQTT 5 brokers report why they closed the connection
+    if (mqtt_version == 5)
+    {
+      mqtt_client->set_disconnected_handler([this](const mqtt::properties &, mqtt::ReasonCode reason)
+                                            {
+                                              mqtt_connected = false;
+                                              BOOST_LOG_TRIVIAL(error) << log_prefix << "Broker closed the connection: " << mqtt::exception::reason_code_str(reason);
+                                            });
+    }
 
     try
     {
@@ -1257,6 +1277,8 @@ public:
     catch (const mqtt::exception &exc)
     {
       BOOST_LOG_TRIVIAL(error) << log_prefix << exc.what() << endl;
+      if (mqtt_version == 5)
+        BOOST_LOG_TRIVIAL(error) << log_prefix << "If the broker does not support MQTT 5, set \"mqtt_version\": 3";
     }
   }
 
